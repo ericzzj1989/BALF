@@ -225,6 +225,10 @@ class COCO(object):
                     file_name = str_image_path.split('/')[-1]
 
                     # save to: data/GOPRO/train_dataset/GOPR0372_07_01/sharp/0000606.npz
+                    npz_file = Path(save_pair_path, "{}.npz".format(file_name))
+                    if npz_file.exists():
+                        print('{} already exists.'.format(npz_file))
+                        continue
                     np.savez_compressed(Path(save_pair_path, "{}.npz".format(file_name)), **synthetic_pairs) 
 
 

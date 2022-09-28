@@ -1,4 +1,5 @@
 import os
+import logging
 import numpy as np
 from pathlib import Path
 
@@ -49,6 +50,7 @@ class GOPRO(COCO.COCO):
             if 'blur_gamma' in r or 'sharp' in r:
                 if r.split('/')[-2] not in self.sequences_name:
                     continue
+                logging.info(r)
                 for file_name in f:
                     if file_name.endswith(".JPEG") or file_name.endswith(".jpg") or file_name.endswith(".png"):
                         images_info.append(Path(r, file_name))

@@ -190,19 +190,20 @@ def space_to_depth(heatmaps, cell_size=8, add_dustbin=True):
     score_maps = score_maps.squeeze(0) if not is_batch else score_maps
     return score_maps # [batch, 65, Hc, Wc]
 
-def check_val_repeatability(dataloader, device, model, cell_size=8, nms_size=15, num_points=25):
+def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_size=8, nms_size=15, num_points=25):
     rep_s = []
     rep_m = []
     error_overlap_s = []
     error_overlap_m = []
     possible_matches = []
+    disp_dict = {}
 
     model.eval()
 
     iterate = tqdm(enumerate(dataloader), total=len(dataloader), desc="Validation")
 
     ba = 0; cb =0; dc= 0; ed= 0; fe=0
-    for _, batch in iterate:
+    for idx, batch in iterate:
         a = time.time()
         images_src_batch, images_dst_batch, heatmap_src_patch, heatmap_dst_patch, h_src_2_dst_batch, h_dst_2_src_batch = batch
         
@@ -257,18 +258,39 @@ def check_val_repeatability(dataloader, device, model, cell_size=8, nms_size=15,
         ed += e-d
         fe += f-e
 
-        iterate.set_description("Validation time: {:0.3f} {:0.3f} {:0.3f} {:0.3f} {:0.3f}".format(ba, cb, dc, ed, fe))
+        iterate.update()
+        iterate.set_description('Validation time: {:0.3f} {:0.3f} {:0.3f} {:0.3f} {:0.3f}'.format(ba, cb, dc, ed, fe))
+        disp_dict.update({'rep_s': '{:0.2f}'.format(repeatability_results['rep_single_scale'])})
+        iterate.set_postfix(disp_dict)
+        
+        if tb_log is not None and idx == 0:
+            src_image_grid = torchvision.utils.make_grid(images_src_batch)
+            dst_image_grid = torchvision.utils.make_grid(images_dst_batch)
+            tb_log.add_image('val_src_image', src_image_grid, cur_epoch)
+            tb_log.add_image('val_dst_image', dst_image_grid, cur_epoch)
+            
+            src_input_heatmaps_grid = torchvision.utils.make_grid(heatmap_src_patch)
+            dst_input_heatmaps_grid = torchvision.utils.make_grid(heatmap_dst_patch)
+            tb_log.add_image('val_src_input_heatmap', src_input_heatmaps_grid, cur_epoch)
+            tb_log.add_image('val_dst_input_heatmap', dst_input_heatmaps_grid, cur_epoch)
 
+            src_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(src_outputs, cell_size, nms_size)
+            dst_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(dst_outputs, cell_size, nms_size)
+            src_outputs_score_maps_grid = torchvision.utils.make_grid(src_outputs_score_maps)
+            dst_outputs_score_maps_grid = torchvision.utils.make_grid(dst_outputs_score_maps)
+            tb_log.add_image('val_src_output_heatmap', src_outputs_score_maps_grid, cur_epoch)
+            tb_log.add_image('val_dst_output_heatmap', dst_outputs_score_maps_grid, cur_epoch)
+            
     return np.asarray(rep_s).mean(), np.asarray(rep_m).mean(), np.asarray(error_overlap_s).mean(),\
            np.asarray(error_overlap_m).mean(), np.asarray(possible_matches).mean()
 
 
 
-def network_outputs_to_score_maps_tensor_batch(network_outputs, cell_size):
+def network_outputs_to_score_maps_tensor_batch(network_outputs, cell_size, nms_size):
     score_maps = F.relu(depth_to_space_without_softmax(network_outputs, cell_size))
     score_maps_np = score_maps.detach().cpu().numpy()
 
-    score_maps_nms_batch = [repeatability_tools.apply_nms_fast(h.squeeze(0), 4) for h in score_maps_np]
+    score_maps_nms_batch = [repeatability_tools.apply_nms_fast(h.squeeze(0), nms_size) for h in score_maps_np]
     score_maps_nms_batch = np.stack(score_maps_nms_batch, axis=0)
     return torch.tensor(score_maps_nms_batch[:, np.newaxis, ...], dtype=torch.float32)
 
@@ -322,20 +344,20 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
         if idx == 0:
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
             dst_image_grid = torchvision.utils.make_grid(images_dst_batch)
-            tb_log.add_image('src_image', src_image_grid, cur_epoch)
-            tb_log.add_image('dst_image', dst_image_grid, cur_epoch)
+            tb_log.add_image('train_src_image', src_image_grid, cur_epoch)
+            tb_log.add_image('train_dst_image', dst_image_grid, cur_epoch)
 
             src_input_heatmaps_grid = torchvision.utils.make_grid(heatmap_src_patch)
             dst_input_heatmaps_grid = torchvision.utils.make_grid(heatmap_dst_patch)
-            tb_log.add_image('src_input_heatmap', src_input_heatmaps_grid, cur_epoch)
-            tb_log.add_image('dst_input_heatmap', dst_input_heatmaps_grid, cur_epoch)
+            tb_log.add_image('train_src_input_heatmap', src_input_heatmaps_grid, cur_epoch)
+            tb_log.add_image('train_dst_input_heatmap', dst_input_heatmaps_grid, cur_epoch)
 
-            src_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(src_outputs, cell_size)
-            dst_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(dst_outputs, cell_size)
+            src_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(src_outputs, cell_size, 4)
+            dst_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(dst_outputs, cell_size, 4)
             src_outputs_score_maps_grid = torchvision.utils.make_grid(src_outputs_score_maps)
             dst_outputs_score_maps_grid = torchvision.utils.make_grid(dst_outputs_score_maps)
-            tb_log.add_image('src_output_heatmap', src_outputs_score_maps_grid, cur_epoch)
-            tb_log.add_image('dst_output_heatmap', dst_outputs_score_maps_grid, cur_epoch)
+            tb_log.add_image('train_src_output_heatmap', src_outputs_score_maps_grid, cur_epoch)
+            tb_log.add_image('train_dst_output_heatmap', dst_outputs_score_maps_grid, cur_epoch)
 
         if output_dir is not None and idx % 100 == 0:
             feature_map_dir = str(output_dir) + '/feature_map/'
@@ -389,7 +411,7 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
 
     toc = time.time()
     total_loss_avg = torch.stack(total_loss_avg)
-    logging.info("Epoch {} (Training). Loss: {:0.4f}. Time per epoch: {}".format(cur_epoch, torch.mean(total_loss_avg), round(toc-tic,4)))
+    logging.info('Epoch {} (Training). Loss: {:0.4f}. Time per epoch: {}'.format(cur_epoch, torch.mean(total_loss_avg), round(toc-tic,4)))
 
 
 

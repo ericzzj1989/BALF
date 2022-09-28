@@ -9,12 +9,12 @@ def parse_config():
     parser.add_argument('--log_dir', type=str, default='logs',
                         help='Path for saving checkpoints')
     parser.add_argument('--exper_name', type=str)
-    parser.add_argument('--fix_random_seed', action='store_true', default=False,
+    parser.add_argument('--fix_random_seed', type=bool, default=False,
                         help='The random seed value for PyTorch and Numpy.')
     parser.add_argument('--random_seed', type=int, default=233,
                         help='The random seed value for PyTorch and Numpy.')
-    parser.add_argument('--is_debugging', action='store_true', default=True,
-                        help='Turn on debuging mode')
+    parser.add_argument('--is_debugging', type=bool, default=False,
+                        help='Set variable to True if you desire to train network on a smaller dataset.')
     parser.add_argument('--resume_training', type=str, default=None,
                         help='Set saved model parameters if resume training is desired.')
 

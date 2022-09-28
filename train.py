@@ -29,6 +29,7 @@ logger.initialize(args, output_dir)
 
 # Set random seeds
 if args.fix_random_seed:
+    logger.info(('Fix random seed as {}. '.format(args.random_seed)))
     common_utils.set_random_seed(args.random_seed)
 
 tensorboard_log = SummaryWriter(common_utils.get_writer_path(args.exper_name, start_time))
@@ -83,8 +84,8 @@ if best_epoch == 0:
     with torch.no_grad():
         for val_loader in val_dataloaders:
             repeatability,_,_,_,_ = train_utils.check_val_repeatability(
-                val_loader['dataloader'], model=model, device=device, cell_size=cfg['model']['cell_size'],
-                nms_size=cfg['model']['nms_size'], num_points=25
+                val_loader['dataloader'], model=model, device=device, tb_log=None, cur_epoch=-1,
+                cell_size=cfg['model']['cell_size'], nms_size=cfg['model']['nms_size'], num_points=25
             )
             best_repeatability = repeatability
             best_epoch = -1
@@ -103,8 +104,8 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
         with torch.no_grad():
             for val_loader in val_dataloaders:
                 rep_s, rep_m, error_overlap_s, error_overlap_m, possible_matches = train_utils.check_val_repeatability(
-                    val_loader['dataloader'], model=model, device=device, cell_size=cfg['model']['cell_size'],
-                    nms_size=cfg['model']['nms_size'], num_points=25
+                    val_loader['dataloader'], model=model, device=device, tb_log=tensorboard_log, cur_epoch=cur_epoch,
+                    cell_size=cfg['model']['cell_size'], nms_size=cfg['model']['nms_size'], num_points=25
                 )
                 tensorboard_log.add_scalar('repeatability_rep_s', rep_s, cur_epoch)
         logger.info(('Epoch {} (Validation) : Repeatability (rep_s): {:.3f}. '.format(cur_epoch, rep_s)))
