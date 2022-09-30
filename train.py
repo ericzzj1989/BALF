@@ -103,7 +103,8 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
             )
         with torch.no_grad():
             for val_loader in val_dataloaders:
-                rep_s, rep_m, error_overlap_s, error_overlap_m, possible_matches = train_utils.check_val_repeatability(
+                rep_s, rep_m, error_overlap_s, error_overlap_m, possible_matches,\
+                rep_s_nms, rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms = train_utils.check_val_repeatability(
                     val_loader['dataloader'], model=model, device=device, tb_log=tensorboard_log, cur_epoch=cur_epoch,
                     cell_size=cfg['model']['cell_size'], nms_size=cfg['model']['nms_size'], num_points=25
                 )
@@ -111,6 +112,10 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
         logger.info(('Epoch {} (Validation) : Repeatability (rep_s): {:.3f}. '.format(cur_epoch, rep_s)))
         logger.info('\trep_m : {:.3f}, error_overlap_s : {:.3f}, error_overlap_m : {:.3f}, possible_matches : {:.3f}. \n'\
                     .format( rep_m, error_overlap_s, error_overlap_m, possible_matches))
+
+        logger.info(('Epoch {} (Validation) : KeyNet NMS Repeatability (rep_s_nms): {:.3f}. '.format(cur_epoch, rep_s_nms)))
+        logger.info('\rep_m_nms : {:.3f}, error_overlap_s_nms : {:.3f}, error_overlap_m_nms : {:.3f}, possible_matches_nms : {:.3f}. \n'\
+                    .format( rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms))
 
         if best_repeatability < rep_s:
             best_repeatability = rep_s

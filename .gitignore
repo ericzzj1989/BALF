@@ -7,3 +7,5 @@ __pycache__
 logs/
 runs/
 data/
+results_hsequences_bench/
+results_hsequences_detection/

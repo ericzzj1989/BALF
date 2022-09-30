@@ -190,6 +190,36 @@ def space_to_depth(heatmaps, cell_size=8, add_dustbin=True):
     score_maps = score_maps.squeeze(0) if not is_batch else score_maps
     return score_maps # [batch, 65, Hc, Wc]
 
+
+def compute_repeatability_with_nms(src_scores_np, dst_scores_np, homography, mask_src, mask_dst, nms_size, num_points):
+    rep_s_nms = []
+    rep_m_nms = []
+    error_overlap_s_nms = []
+    error_overlap_m_nms = []
+    possible_matches_nms = []
+
+    src_scores_nms = repeatability_tools.apply_nms(src_scores_np, nms_size)
+    dst_scores_nms = repeatability_tools.apply_nms(dst_scores_np, nms_size)
+
+    src_scores_common_nms = np.multiply(src_scores_nms, mask_src)
+    dst_scores_common_nms = np.multiply(dst_scores_nms, mask_dst)
+
+    src_pts_nms = geometry_tools.get_point_coordinates(src_scores_common, num_points=num_points, order_coord='xysr')
+    dst_pts_nms = geometry_tools.get_point_coordinates(dst_scores_common, num_points=num_points, order_coord='xysr')
+
+    dst_to_src_pts_nms = geometry_tools.apply_homography_to_points(dst_pts_nms, homography)
+
+    repeatability_results_nms = repeatability_tools.compute_repeatability(src_pts_nms, dst_to_src_pts_nms)
+
+    rep_s_nms.append(repeatability_results_nms['rep_single_scale'])
+    rep_m_nms.append(repeatability_results_nms['rep_multi_scale'])
+    error_overlap_s_nms.append(repeatability_results_nms['error_overlap_single_scale'])
+    error_overlap_m_nms.append(repeatability_results_nms['error_overlap_multi_scale'])
+    possible_matches_nms.append(repeatability_results_nms['possible_matches'])
+
+    return rep_s_nms, rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms
+
+
 def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_size=8, nms_size=15, num_points=25):
     rep_s = []
     rep_m = []
@@ -262,6 +292,11 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
         iterate.set_description('Validation time: {:0.3f} {:0.3f} {:0.3f} {:0.3f} {:0.3f}'.format(ba, cb, dc, ed, fe))
         disp_dict.update({'rep_s': '{:0.2f}'.format(repeatability_results['rep_single_scale'])})
         iterate.set_postfix(disp_dict)
+
+        rep_s_nms, rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms = compute_repeatability_with_nms(
+            src_score_maps[0, 0, :, :].cpu().numpy(), dst_score_maps[0, 0, :, :].cpu().numpy(), homography,
+            mask_src, mask_dst, nms_size, num_points
+        )
         
         if tb_log is not None and idx == 0:
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
@@ -282,7 +317,9 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
             tb_log.add_image('val_dst_output_heatmap', dst_outputs_score_maps_grid, cur_epoch)
             
     return np.asarray(rep_s).mean(), np.asarray(rep_m).mean(), np.asarray(error_overlap_s).mean(),\
-           np.asarray(error_overlap_m).mean(), np.asarray(possible_matches).mean()
+           np.asarray(error_overlap_m).mean(), np.asarray(possible_matches).mean(),\
+           np.asarray(rep_s_nms).mean(), np.asarray(rep_m_nms).mean(), np.asarray(error_overlap_s_nms).mean(),\
+           np.asarray(error_overlap_m_nms).mean(), np.asarray(possible_matches_nms).mean()
 
 
 
@@ -331,7 +368,7 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
 
         disp_dict.update({'loss': loss.item(), 'lr': cur_lr})
         pbar.update()
-        pbar.set_description('current lr: {:0.6f}, current loss: {:0.4f}, avg loss: {:0.4f}'.format(cur_lr, loss, torch.stack(total_loss_avg).mean()))
+        pbar.set_description('Training current lr: {:0.6f}, current loss: {:0.4f}, avg loss: {:0.4f}'.format(cur_lr, loss, torch.stack(total_loss_avg).mean()))
         tbar.set_postfix(disp_dict)
         tbar.refresh()
 
@@ -339,9 +376,9 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
         optimizer.step()
 
 
-        tb_log.add_scalar('train_loss', loss, cur_epoch)
-
         if idx == 0:
+            tb_log.add_scalar('train_loss', loss, cur_epoch)
+
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
             dst_image_grid = torchvision.utils.make_grid(images_dst_batch)
             tb_log.add_image('train_src_image', src_image_grid, cur_epoch)
@@ -411,7 +448,7 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
 
     toc = time.time()
     total_loss_avg = torch.stack(total_loss_avg)
-    logging.info('Epoch {} (Training). Loss: {:0.4f}. Time per epoch: {}'.format(cur_epoch, torch.mean(total_loss_avg), round(toc-tic,4)))
+    logging.info('Epoch {} (Training). Loss: {:0.4f}. Time per epoch: {}. \n'.format(cur_epoch, torch.mean(total_loss_avg), round(toc-tic,4)))
 
 
 
