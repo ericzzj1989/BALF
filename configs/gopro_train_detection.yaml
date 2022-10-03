@@ -146,7 +146,7 @@ model:
   cell_size: 8
   nms_size: 15
   
-ckpt_save_interval: 30
+ckpt_save_interval: 10
 max_ckpt_save_num: 30
 # restore_ckpt: True
 # reset_epoch: False

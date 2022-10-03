@@ -204,8 +204,8 @@ def compute_repeatability_with_nms(src_scores_np, dst_scores_np, homography, mas
     src_scores_common_nms = np.multiply(src_scores_nms, mask_src)
     dst_scores_common_nms = np.multiply(dst_scores_nms, mask_dst)
 
-    src_pts_nms = geometry_tools.get_point_coordinates(src_scores_common, num_points=num_points, order_coord='xysr')
-    dst_pts_nms = geometry_tools.get_point_coordinates(dst_scores_common, num_points=num_points, order_coord='xysr')
+    src_pts_nms = geometry_tools.get_point_coordinates(src_scores_common_nms, num_points=num_points, order_coord='xysr')
+    dst_pts_nms = geometry_tools.get_point_coordinates(dst_scores_common_nms, num_points=num_points, order_coord='xysr')
 
     dst_to_src_pts_nms = geometry_tools.apply_homography_to_points(dst_pts_nms, homography)
 
