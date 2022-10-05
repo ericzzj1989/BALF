@@ -28,7 +28,7 @@ def extract_features(image_RGB_norm, model, device, config, is_debugging=False):
     image_pad_batch = image_pad_tensor.unsqueeze(0)
 
 
-    output_pad_batch = model(image_pad_batch.to(device))
+    output_pad_batch, outputs_pos_batch = model(image_pad_batch.to(device))
 
 
     score_map_pad_batch = F.relu(train_utils.depth_to_space_without_softmax(output_pad_batch, config['cell_size']))
