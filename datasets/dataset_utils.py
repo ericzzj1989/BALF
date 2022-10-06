@@ -294,3 +294,77 @@ def heatmap_to_points(heatmap):
     pts[:, 1] = ys
 
     return pts # [N,2]
+
+
+def make_shape_even(image):
+    height, width = image.shape[0], image.shape[1]
+    padh = 1 if height % 2 != 0 else 0
+    padw = 1 if width % 2 != 0 else 0
+    image = np.pad(image, ((0, padh), (0, padw), (0, 0)), mode='constant', constant_values=0)
+    return image
+
+def mod_padding_symmetric(image, factor=64):
+    height, width = image.shape[0], image.shape[1]
+    height_pad, width_pad = ((height + factor) // factor) * factor, (
+        (width + factor) // factor) * factor
+    padh = height_pad - height if height % factor != 0 else 0
+    padw = width_pad - width if width % factor != 0 else 0
+    image = np.pad(
+        image, ((padh // 2, padh // 2), (padw // 2, padw // 2), (0, 0)),
+        mode='constant', constant_values=0)
+    return image
+
+
+def debug_test_results(image_RGB_norm, image_even, image_pad, score_map_pad_np, score_map, score_map_remove_border, score_map_nms):
+    print('original image shape: ', image_RGB_norm.shape[0], image_RGB_norm.shape[1])
+    print('even image shape: ', image_even.shape[0], image_even.shape[1])
+    print('pad image shape: ', image_pad.shape[0], image_pad.shape[1])
+    print('pad score map shape', score_map_pad_np.shape)
+    print('score map shape', score_map.shape)
+    print('remove border score map shape', score_map_remove_border.shape)
+    print('nms score map shape', score_map_nms.shape)
+
+    assert(image_RGB_norm.shape[0] == score_map.shape[0] and image_RGB_norm.shape[1] == score_map.shape[1])
+    assert(image_pad.shape[0] == score_map_pad_np.shape[0] and image_pad.shape[1] == score_map_pad_np.shape[1])
+    assert(image_RGB_norm.shape[0] == score_map_remove_border.shape[0] and image_RGB_norm.shape[1] == score_map_remove_border.shape[1])
+    assert(image_RGB_norm.shape[0] == score_map_nms.shape[0] and image_RGB_norm.shape[1] == score_map_nms.shape[1])
+
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    rows = 2; cols = 4
+    ax1 = fig.add_subplot(rows, cols, 1)
+    ax1.imshow(image_RGB_norm)
+    ax1.set_title('image_RGB')
+    ax1.axis("off")
+
+    ax2 = fig.add_subplot(rows, cols, 2)
+    ax2.imshow(image_even)
+    ax2.set_title('image_even')
+    ax2.axis("off")
+
+    ax3 = fig.add_subplot(rows, cols, 3)
+    ax3.imshow(image_pad)
+    ax3.set_title('image_pad')
+    ax3.axis("off")
+
+    ax5 = fig.add_subplot(rows, cols, 5)
+    ax5.imshow(score_map_pad_np, cmap='gray')
+    ax5.set_title('score_map_pad')
+    ax5.axis("off")
+
+    ax6 = fig.add_subplot(rows, cols, 6)
+    ax6.imshow(score_map, cmap='gray')
+    ax6.set_title('score_map')
+    ax6.axis("off")
+
+    ax7 = fig.add_subplot(rows, cols, 7)
+    ax7.imshow(score_map_remove_border, cmap='gray')
+    ax7.set_title('remove_border')
+    ax7.axis("off")
+
+    ax8 = fig.add_subplot(rows, cols, 8)
+    ax8.imshow(score_map_nms, cmap='gray')
+    ax8.set_title('nms')
+    ax8.axis("off")
+
+    plt.show()
