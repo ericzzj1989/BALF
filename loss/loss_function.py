@@ -71,14 +71,19 @@ class ScoreLoss(object):
         a_s = torch.tensor(self.score_shape, dtype=torch.float32).to(self.device)
         b_s = torch.tensor(self.score_shape, dtype=torch.float32).to(self.device)
 
-        a_pixel_coor = (self.cell + a_p) * 8
-        b_pixel_coor = (self.cell + b_p) * 8
+        a_pixel_coor = (self.cell + a_p) * self.downsample
+        b_pixel_coor = (self.cell + b_p) * self.downsample
 
         a_pixel_coor[torch.where(a_pixel_coor>255.5)] = 255.0
         b_pixel_coor[torch.where(b_pixel_coor>255.5)] = 255.0
+        
+        # if (len(torch.where(a_pixel_coor.round().long()>255)[0])>0):
+        #     print('a pixel_pos error 255: ', a_pixel_coor[torch.where(a_pixel_coor.round().long()>255)])
+        # if (len(torch.where(b_pixel_coor.round().long()>255)[0])>0):
+        #     print('b pixel_pos error 255: ', b_pixel_coor[torch.where(b_pixel_coor.round().long()>255)])
 
-        assert(len(torch.where(a_pixel_coor.round().long()>255)[0])==0)
-        assert(len(torch.where(b_pixel_coor.round().long()>255)[0])==0)
+        # assert(len(torch.where(a_pixel_coor.round().long()>255)[0])==0)
+        # assert(len(torch.where(b_pixel_coor.round().long()>255)[0])==0)
 
         a_s = a_score_map[:,a_pixel_coor[1,:,:].round().long(), a_pixel_coor[0,:,:].round().long()]
         b_s = b_score_map[:,b_pixel_coor[1,:,:].round().long(), b_pixel_coor[0,:,:].round().long()]

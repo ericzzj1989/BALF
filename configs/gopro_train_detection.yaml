@@ -20,8 +20,8 @@ data:
   train_batch_size: 4
   val_batch_size: 1
 
-  train_num_workers: 12
-  val_num_workers: 0
+  train_num_workers: 16
+  val_num_workers: 16
 
 
 model:

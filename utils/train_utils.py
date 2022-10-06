@@ -185,9 +185,9 @@ def space_to_depth(heatmaps, cell_size=8, add_dustbin=True):
         dustbin[dustbin < 1.] = 0
         heatmaps = torch.cat((heatmaps, dustbin.view(batch_size, 1, Hc, Wc)), dim=1)
         dn = heatmaps.sum(dim=1)
-        score_maps = heatmaps.div(torch.unsqueeze(dn, 1))
+        heatmaps = heatmaps.div(torch.unsqueeze(dn, 1))
     
-    score_maps = score_maps.squeeze(0) if not is_batch else score_maps
+    score_maps = heatmaps.squeeze(0) if not is_batch else heatmaps
     return score_maps # [batch, 65, Hc, Wc]
 
 
