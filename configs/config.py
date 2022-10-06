@@ -1,5 +1,6 @@
 import argparse
-import yaml
+from utils import common_utils
+
 
 def parse_config():
     parser = argparse.ArgumentParser(description='motion blur feature detection')
@@ -20,15 +21,6 @@ def parse_config():
 
     args = parser.parse_args()
 
-    cfg = get_cfg_from_yaml_file(args.cfg_file)
+    cfg = common_utils.get_cfg_from_yaml_file(args.cfg_file)
 
     return args, cfg
-
-def get_cfg_from_yaml_file(cfg_file):
-    with open(cfg_file, 'r') as f:
-        try:
-            config = yaml.load(f, Loader=yaml.FullLoader)
-        except:
-            config = yaml.load(f)
-
-    return config
