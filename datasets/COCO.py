@@ -52,6 +52,8 @@ class COCO(base_dataset.base_dataset):
             while incorrect_h:
 
                 src_BGR = dataset_utils.read_bgr_image(str(image_path))
+                if src_BGR.shape[0] < patch_size or src_BGR.shape[1] < patch_size:
+                    continue
                 src_RGB = dataset_utils.bgr_to_rgb(src_BGR)
 
                 source_shape = src_RGB.shape
@@ -72,7 +74,7 @@ class COCO(base_dataset.base_dataset):
 
             
             if self.dataset_name == 'COCO':
-                label_path = Path(self.dataset_cfg['labels_path'], "{}.npz".format(image_path.stem))
+                label_path = Path(self.dataset_cfg['labels_path'], self.task, "{}.npz".format(image_path.stem))
             elif self.dataset_name == 'GOPRO':
                 label_path = Path(self.dataset_cfg['labels_path'], image_path.parts[-3], "{}.npz".format(image_path.stem))
 
