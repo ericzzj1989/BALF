@@ -1,9 +1,11 @@
+import datetime
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 
 from configs import config_hpatches
 from utils import common_utils
+from utils.logger import logger
 from datasets import HSequences
 from benchmark_test import test_utils, geometry_tools, repeatability_tools
 
@@ -13,6 +15,11 @@ def hsequences_metrics():
 
     print('Evaluate {} sequences'.format(args.split))
     common_utils.check_directory(args.results_bench_dir)
+    start_time = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+    output_dir = Path(args.results_bench_dir, start_time)
+    common_utils.check_directory(output_dir)
+
+    logger.initialize(args, output_dir)
 
     dataloader = HSequences.HSequences(args.data_dir, args.split, args.split_path)
     metrics_results = test_utils.create_metrics_results(args.split, args.top_k_points, args.overlap, args.pixel_threshold)
@@ -103,14 +110,23 @@ def hsequences_metrics():
                 repeatability_results['error_overlap_multi_scale'])
             metrics_results['num_features'].append(
                 repeatability_results['total_num_points'])
+            metrics_results['num_matches'].append(
+                repeatability_results['possible_matches'])
 
             ## logging
-            iterate.set_description("{}  {} / {} - {} rep_s {:.2f} , rep_m {:.2f}, p_s {:d} , p_m {:d}, eps_s {:.2f}, eps_m {:.2f}, num_pts {:d}"
+            iterate.set_description("{}  {} / {} - {} rep_s {:.2f} , rep_m {:.2f}, p_s {:d} , p_m {:d}, eps_s {:.2f}, eps_m {:.2f}, #_features {:d}, #_matches {:d}"
                 .format(
                     sequence_name, counter_sequences, len(dataloader.sequences), im_dst_index,
                     repeatability_results['rep_single_scale'], repeatability_results['rep_multi_scale'], repeatability_results['num_points_single_scale'], 
                     repeatability_results['num_points_multi_scale'], repeatability_results['error_overlap_single_scale'],
-                    repeatability_results['error_overlap_multi_scale'], repeatability_results['total_num_points']
+                    repeatability_results['error_overlap_multi_scale'], repeatability_results['total_num_points'], repeatability_results['possible_matches']
+            ))
+            logger.info("{}  1 - {} rep_s {:.2f} , rep_m {:.2f}, p_s {:.2f} , p_m {:.2f}, eps_s {:.2f}, eps_m {:.2f}, total_# {:.2f}, matches {:.2f}"
+                .format(
+                    sequence_name, im_dst_index,
+                    repeatability_results['rep_single_scale'], repeatability_results['rep_multi_scale'], repeatability_results['num_points_single_scale'], 
+                    repeatability_results['num_points_multi_scale'], repeatability_results['error_overlap_single_scale'],
+                    repeatability_results['error_overlap_multi_scale'], repeatability_results['total_num_points'], repeatability_results['possible_matches']
             ))
 
     # average the results
@@ -119,6 +135,7 @@ def hsequences_metrics():
     error_overlap_s = np.array(metrics_results['error_overlap_single_scale']).mean()
     error_overlap_m = np.array(metrics_results['error_overlap_multi_scale']).mean()
     num_features = np.array(metrics_results['num_features']).mean()
+    num_matches = np.array(metrics_results['num_matches']).mean()
 
     print('\n## Overlap @{0}:\n \
            ## top_k @{1}:\n \
@@ -127,12 +144,13 @@ def hsequences_metrics():
            #### Rep. Single: {4:.4f}\n \
            #### Overlap Multi: {5:.4f}\n \
            #### Overlap Single: {6:.4f}\n \
-           #### Num Feats: {7:.4f}'.format(
+           #### Num Feats: {7:.4f}\n \
+           #### Num Matches: {8:.4f}'.format(
            args.overlap, args.top_k_points, args.pixel_threshold,
-           rep_multi, rep_single, error_overlap_s, error_overlap_m, num_features
+           rep_multi, rep_single, error_overlap_s, error_overlap_m, num_features, num_matches
     ))
 
-    save_metrics_dir = Path(args.results_bench_dir, args.results_detection_dir.split('/')[1], 'overlap{}_top-k{}_pixel-threshold{}'.format(args.overlap, args.top_k_points, args.pixel_threshold))
+    save_metrics_dir = Path(output_dir, args.results_detection_dir.split('/')[1], 'overlap{}_top-k{}_pixel-threshold{}'.format(args.overlap, args.top_k_points, args.pixel_threshold))
     common_utils.check_directory(save_metrics_dir)
     metrics_file = Path(save_metrics_dir, 'metrics')
     np.savez(metrics_file, rep_single=rep_single, rep_multi=rep_multi, error_overlap_s=error_overlap_s, error_overlap_m=error_overlap_m, num_features=num_features)
