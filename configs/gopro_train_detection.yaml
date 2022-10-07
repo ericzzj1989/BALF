@@ -3,7 +3,7 @@ data:
   dataset_names: [COCO]
   COCO:
     images_path: data/COCO
-    labels_path:
+    labels_path: data/COCO_raw_ground_truth
 
   GOPRO:
     images_path: data/GOPRO_Large/train/
@@ -20,8 +20,8 @@ data:
   train_batch_size: 4
   val_batch_size: 1
 
-  train_num_workers: 16
-  val_num_workers: 16
+  train_num_workers: 12
+  val_num_workers: 12
 
 
 model:
