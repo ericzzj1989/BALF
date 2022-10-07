@@ -11,8 +11,7 @@ def create_results():
        'mma_corr': [],
        'num_matches': [],
        'num_mutual_corresp': [],
-       'avg_mma': [],
-       'num_matches': [],
+       'avg_mma': []
     }
 
 def create_metrics_results(sequences, top_k, overlap, pixel_threshold):

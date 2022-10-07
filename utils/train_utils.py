@@ -185,9 +185,9 @@ def space_to_depth(heatmaps, cell_size=8, add_dustbin=True):
         dustbin[dustbin < 1.] = 0
         heatmaps = torch.cat((heatmaps, dustbin.view(batch_size, 1, Hc, Wc)), dim=1)
         dn = heatmaps.sum(dim=1)
-        score_maps = heatmaps.div(torch.unsqueeze(dn, 1))
+        heatmaps = heatmaps.div(torch.unsqueeze(dn, 1))
     
-    score_maps = score_maps.squeeze(0) if not is_batch else score_maps
+    score_maps = heatmaps.squeeze(0) if not is_batch else heatmaps
     return score_maps # [batch, 65, Hc, Wc]
 
 
@@ -236,12 +236,14 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
     for idx, batch in iterate:
         a = time.time()
         images_src_batch, images_dst_batch, heatmap_src_patch, heatmap_dst_patch, h_src_2_dst_batch, h_dst_2_src_batch = batch
-        
-        src_outputs = model(images_src_batch.to(device))
-        dst_outputs = model(images_dst_batch.to(device))
+        images_src_batch, images_dst_batch, heatmap_src_patch, heatmap_dst_patch, h_src_2_dst_batch, h_dst_2_src_batch =\
+        images_src_batch.to(device), images_dst_batch.to(device), heatmap_src_patch.to(device), heatmap_dst_patch.to(device), h_src_2_dst_batch.to(device), h_dst_2_src_batch.to(device)
 
-        src_score_maps = F.relu(depth_to_space_without_softmax(src_outputs, cell_size))
-        dst_score_maps = F.relu(depth_to_space_without_softmax(dst_outputs, cell_size))
+        src_outputs_score_batch, src_outputs_pos_batch = model(images_src_batch)
+        dst_outputs_score_batch, dst_outputs_pos_batch = model(images_dst_batch)
+
+        src_score_maps = F.relu(depth_to_space_without_softmax(src_outputs_score_batch, cell_size))
+        dst_score_maps = F.relu(depth_to_space_without_softmax(dst_outputs_score_batch, cell_size))
 
         b = time.time()
         # hom = geo_tools.prepare_homography(h_dst_2_src_batch[0])
@@ -309,8 +311,8 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
             tb_log.add_image('val_src_input_heatmap', src_input_heatmaps_grid, cur_epoch)
             tb_log.add_image('val_dst_input_heatmap', dst_input_heatmaps_grid, cur_epoch)
 
-            src_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(src_outputs, cell_size, nms_size)
-            dst_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(dst_outputs, cell_size, nms_size)
+            src_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(src_outputs_score_batch, cell_size, nms_size)
+            dst_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(dst_outputs_score_batch, cell_size, nms_size)
             src_outputs_score_maps_grid = torchvision.utils.make_grid(src_outputs_score_maps)
             dst_outputs_score_maps_grid = torchvision.utils.make_grid(dst_outputs_score_maps)
             tb_log.add_image('val_src_output_heatmap', src_outputs_score_maps_grid, cur_epoch)
@@ -332,7 +334,7 @@ def network_outputs_to_score_maps_tensor_batch(network_outputs, cell_size, nms_s
     return torch.tensor(score_maps_nms_batch[:, np.newaxis, ...], dtype=torch.float32)
 
 
-def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, output_dir=None, cell_size=8, add_dustbin=True, anchor_loss='softmax'):
+def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, output_dir=None, cell_size=8, add_dustbin=True, anchor_loss='softmax', usp_loss=None):
     total_loss_avg = []
     disp_dict = {}
 
@@ -341,7 +343,8 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
     for idx, batch in pbar:
         images_src_batch, images_dst_batch, heatmap_src_patch, heatmap_dst_patch, h_src_2_dst_batch, h_dst_2_src_batch = batch
         # print(im_src_patch.shape, im_dst_patch.shape, heatmap_src_patch.shape, heatmap_dst_patch.shape, homography_src_2_dst.shape, homography_dst_2_src.shape)
-
+        images_src_batch, images_dst_batch, heatmap_src_patch, heatmap_dst_patch, h_src_2_dst_batch, h_dst_2_src_batch =\
+        images_src_batch.to(device), images_dst_batch.to(device), heatmap_src_patch.to(device), heatmap_dst_patch.to(device), h_src_2_dst_batch.to(device), h_dst_2_src_batch.to(device)
 
         try:
             cur_lr = float(optimizer.lr)
@@ -354,16 +357,39 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
         model.train()
         optimizer.zero_grad()
 
-        src_outputs = model(images_src_batch.to(device))
-        dst_outputs = model(images_dst_batch.to(device))
+        src_outputs_score_batch, src_outputs_pos_batch  = model(images_src_batch)
+        dst_outputs_score_batch, dst_outputs_pos_batch = model(images_dst_batch)
 
-        src_input_heatmaps = space_to_depth(heatmap_src_patch.to(device), cell_size=cell_size, add_dustbin=add_dustbin)
-        dst_input_heatmaps = space_to_depth(heatmap_dst_patch.to(device), cell_size=cell_size, add_dustbin=add_dustbin)
 
-        src_anchor_loss = loss_function.anchor_loss(device=device, input=src_outputs, target=src_input_heatmaps, loss_type=anchor_loss)
-        dst_anchor_loss = loss_function.anchor_loss(device=device, input=dst_outputs, target=dst_input_heatmaps, loss_type=anchor_loss)
+        src_input_heatmaps_batch = space_to_depth(heatmap_src_patch, cell_size=cell_size, add_dustbin=add_dustbin)
+        dst_input_heatmaps_batch = space_to_depth(heatmap_dst_patch, cell_size=cell_size, add_dustbin=add_dustbin)
 
-        loss = src_anchor_loss + dst_anchor_loss
+        src_anchor_loss = loss_function.anchor_loss(
+            device=device, input=src_outputs_score_batch,
+            target=src_input_heatmaps_batch, loss_type=anchor_loss
+        )
+        dst_anchor_loss = loss_function.anchor_loss(
+            device=device, input=dst_outputs_score_batch,
+            target=dst_input_heatmaps_batch, loss_type=anchor_loss
+        )
+
+
+        if usp_loss is not None:
+            unsuper_loss = usp_loss.loss(
+                src_outputs_score_batch, dst_outputs_score_batch,
+                src_outputs_pos_batch, dst_outputs_pos_batch,
+                h_src_2_dst_batch, h_dst_2_src_batch,
+                cell_size
+            )
+        else:
+            unsuper_loss = torch.tensor([0]).float().to(device)
+
+
+        loss = src_anchor_loss + dst_anchor_loss + unsuper_loss
+
+        loss.backward()
+        optimizer.step()
+
         total_loss_avg.append(loss)
 
         disp_dict.update({'loss': loss.item(), 'lr': cur_lr})
@@ -372,12 +398,11 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
         tbar.set_postfix(disp_dict)
         tbar.refresh()
 
-        loss.backward()
-        optimizer.step()
-
-
         if idx == 0:
-            tb_log.add_scalar('train_loss', loss, cur_epoch)
+            tb_log.add_scalar('total_loss', loss, cur_epoch)
+            tb_log.add_scalar('src_anchor_loss', src_anchor_loss, cur_epoch)
+            tb_log.add_scalar('dst_anchor_loss', dst_anchor_loss, cur_epoch)
+            tb_log.add_scalar('unsuper_loss', unsuper_loss, cur_epoch)
 
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
             dst_image_grid = torchvision.utils.make_grid(images_dst_batch)
@@ -389,8 +414,8 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
             tb_log.add_image('train_src_input_heatmap', src_input_heatmaps_grid, cur_epoch)
             tb_log.add_image('train_dst_input_heatmap', dst_input_heatmaps_grid, cur_epoch)
 
-            src_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(src_outputs, cell_size, 4)
-            dst_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(dst_outputs, cell_size, 4)
+            src_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(src_outputs_score_batch, cell_size, 4)
+            dst_outputs_score_maps = network_outputs_to_score_maps_tensor_batch(dst_outputs_score_batch, cell_size, 4)
             src_outputs_score_maps_grid = torchvision.utils.make_grid(src_outputs_score_maps)
             dst_outputs_score_maps_grid = torchvision.utils.make_grid(dst_outputs_score_maps)
             tb_log.add_image('train_src_output_heatmap', src_outputs_score_maps_grid, cur_epoch)
@@ -408,8 +433,8 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
 
             post_fix = 'epoch'+str(cur_epoch)+'_'+'iter'+str(idx)
 
-            output1 = depth_to_space_without_softmax(src_outputs.detach(), cell_size)
-            output2 = depth_to_space_without_softmax(dst_outputs.detach(), cell_size)
+            output1 = depth_to_space_without_softmax(src_outputs_score_batch.detach(), cell_size)
+            output2 = depth_to_space_without_softmax(dst_outputs_score_batch.detach(), cell_size)
             deep_src = common_utils.remove_borders(output1, 16).cpu().detach().numpy()
             deep_dst = common_utils.remove_borders(output2, 16).cpu().detach().numpy()
 

@@ -68,3 +68,13 @@ def remove_borders(images, borders=3):
         exit()
 
     return images
+
+
+def create_result_dir(path):
+    directories = path.split('/')
+    tmp = ''
+    for idx, dir in enumerate(directories):
+        tmp += (dir + '/')
+        if idx == len(directories)-1:
+            continue
+        check_directory(tmp)

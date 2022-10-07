@@ -11,6 +11,7 @@ from utils import common_utils, train_utils
 from utils.logger import logger
 from datasets import create_dataloader
 from model import get_model
+from loss import loss_function
 
 
 # Basic setting
@@ -43,6 +44,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = get_model.load_model(cfg['model'])
 model.to(device)
 
+usp_loss = loss_function.ScoreLoss(device, cfg['model']['usp_loss'])
 
 optimizer = train_utils.build_optimizer(filter(lambda p: p.requires_grad, model.parameters()), cfg['model']['optimizer'])
 
@@ -55,7 +57,7 @@ best_repeatability = 0
 
 if args.resume_training is not None:
     start_epoch, best_repeatability = get_model.load_pretrained_model(
-        model=model, filename=args.resume_training, logger=logger, optimizer=optimizer
+        model=model, filename=args.resume_training, logger=logger, optimizer=optimizer, device=device
     )
     best_epoch = start_epoch
     last_epoch = start_epoch - 1
@@ -100,7 +102,7 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
             train_utils.train_model(
                 cur_epoch=cur_epoch, dataloader=train_loader['dataloader'], model=model,
                 optimizer=optimizer, device=device, tb_log=tensorboard_log, tbar=tbar, output_dir=output_dir,
-                cell_size=cfg['model']['cell_size'], anchor_loss=cfg['model']['anchor_loss']
+                cell_size=cfg['model']['cell_size'], anchor_loss=cfg['model']['anchor_loss'], usp_loss=usp_loss
             )
         with torch.no_grad():
             for val_loader in val_dataloaders:
@@ -115,8 +117,8 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
         logger.info('\trep_m : {:.3f}, error_overlap_s : {:.3f}, error_overlap_m : {:.3f}, possible_matches : {:.3f}. \n'\
                     .format( rep_m, error_overlap_s, error_overlap_m, possible_matches))
 
-        logger.info(('Epoch {} (Validation) : KeyNet NMS Repeatability (rep_s_nms): {:.3f}. '.format(cur_epoch, rep_s_nms)))
-        logger.info('\rep_m_nms : {:.3f}, error_overlap_s_nms : {:.3f}, error_overlap_m_nms : {:.3f}, possible_matches_nms : {:.3f}. \n\n'\
+        logger.info(('\tEpoch {} (Validation) : KeyNet NMS Repeatability (rep_s_nms): {:.3f}. '.format(cur_epoch, rep_s_nms)))
+        logger.info('\t\trep_m_nms : {:.3f}, error_overlap_s_nms : {:.3f}, error_overlap_m_nms : {:.3f}, possible_matches_nms : {:.3f}. \n\n'\
                     .format( rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms))
 
         if best_repeatability < rep_s_nms:

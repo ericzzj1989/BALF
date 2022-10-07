@@ -1,7 +1,7 @@
 from torch.utils.data import DataLoader
 
 from utils.common_utils import get_module
-from datasets import base_dataset
+
 
 def build_dataloaders(data_cfg, task, is_debugging=False):
     dataloaders = [
@@ -13,16 +13,12 @@ def build_dataloaders(data_cfg, task, is_debugging=False):
     return dataloaders
 
 def get_dataloader(data_cfg, dataset_name, task, is_debugging=False):
-    dataset_generation = get_module('datasets', dataset_name)(
+    dataset = get_module('datasets', dataset_name)(
         data_cfg=data_cfg,
         dataset_name=dataset_name,
         task=task,
         is_debugging=is_debugging
     )
-
-    data = dataset_generation.get_data()
-
-    dataset =  base_dataset.base_dataset(data, task=task)
 
     if task == 'train':
         batch_size = data_cfg['train_batch_size']
