@@ -11,6 +11,10 @@ def check_common_points(kpts, mask):
             idx_valid_points.append(idx)
     return np.asarray(idx_valid_points)
 
+def select_top_k(kpts, k=1000):
+    scores = -1 * kpts[:, 3]
+    return np.argsort(scores)[:k]
+
 def apply_nms(score_map, size):
     
     score_map = score_map * (score_map == maximum_filter(score_map, footprint=np.ones((size, size))))

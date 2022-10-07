@@ -1,7 +1,7 @@
 import os
 import torch
 
-from model import mlp_ma
+from model import mlp_ma, mlp_ma_pos
 
 def load_pretrained_model(model, filename, logger, optimizer=None, device='cuda'):
     if not os.path.isfile(filename):
@@ -47,5 +47,5 @@ def load_pretrained_model(model, filename, logger, optimizer=None, device='cuda'
 
 
 def load_model(model_cfg):
-    model = mlp_ma.MLPMA(model_cfg['network_architecture'])
+    model = mlp_ma_pos.MLPMAPOS(model_cfg['network_architecture'])
     return model

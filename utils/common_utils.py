@@ -1,9 +1,19 @@
 import random
+import yaml
 import numpy as np
 from pathlib import Path
 import importlib
 import torch
 
+
+def get_cfg_from_yaml_file(cfg_file):
+    with open(cfg_file, 'r') as f:
+        try:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+        except:
+            config = yaml.load(f)
+
+    return config
 
 def set_random_seed(seed):
     random.seed(seed)
@@ -58,3 +68,13 @@ def remove_borders(images, borders=3):
         exit()
 
     return images
+
+
+def create_result_dir(path):
+    directories = path.split('/')
+    tmp = ''
+    for idx, dir in enumerate(directories):
+        tmp += (dir + '/')
+        if idx == len(directories)-1:
+            continue
+        check_directory(tmp)

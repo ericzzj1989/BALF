@@ -3,7 +3,7 @@ data:
   dataset_names: [GOPRO]
   COCO:
     images_path: data/COCO
-    labels_path: data/COCO_resize_256_256_groud_truth_sift
+    labels_path:
 
   GOPRO:
     images_path: data/GOPRO_Large/train/
@@ -16,108 +16,16 @@ data:
     perspective: 0.2
     rotation: 25
     scale: 0.2
-    # translation:
-    #     range: [-10, 10]
-    #     var: 1.0
     
   train_batch_size: 4
   val_batch_size: 1
 
-  train_num_workers: 12
-  val_num_workers: 0
-
-
-  # preprocessing:
-  #   resize: [256, 256]
-
-  # augmentation:
-  #   transform:
-  #     enable: True
-  #     primitives: ['resize', 'crop', 'rotate', 'flip', 'cutout']
-  #     params:
-  #       resize:
-  #         enable: False
-  #         size: [240, 320]
-  #       crop:
-  #         enable: False
-  #         type: 'random'
-  #         size: [256, 256]
-  #         padding: [0, 0, 0]
-  #       rotate:
-  #         enable: True
-  #         min: -60
-  #         max: 60
-  #         padding: 0 # [0, 0, 0]
-  #       flip:
-  #         enable: True
-  #         h_prob: 0.5
-  #         v_prob: 0.5
-  #       cutout:
-  #         enable: False
-  #         mask_size: [16, 16]
-  #         num_holes: 3
-  #         color: 0
-  #   photometric:
-  #     enable: True
-  #     # primitives: ['brightness_contrast', 'gamma', 'gaussian_noise', 'iso_noise', 'hue_saturation']
-  #     # params:
-  #     #   brightness_contrast:
-  #     #     enable: True
-  #     #     prob: 0.6
-  #     #   gamma:
-  #     #     enable: True
-  #     #     prob: 0.1
-  #     #   gaussian_noise:
-  #     #     enable: False
-  #     #     low: 0
-  #     #     high: 10
-  #     #     prob: 0.25
-  #     #   iso_noise:
-  #     #     enable: False
-  #     #     prob: 0.25
-  #     #   hue_saturation:
-  #     #     enable: True
-  #     #     prob: 0.1
-  #     primitives: [
-  #       'random_brightness', 'random_contrast', 'additive_speckle_noise',
-  #       'additive_gaussian_noise', 'additive_shade', 'motion_blur']
-  #     params:
-  #       random_brightness: {max_abs_change: 50}
-  #       random_contrast: {strength_range: [0.5, 1.5]}
-  #       additive_gaussian_noise: {stddev_range: [0, 10]}
-  #       additive_speckle_noise: {prob_range: [0, 0.0035]}
-  #       additive_shade:
-  #           transparency_range: [-0.5, 0.5]
-  #           kernel_size_range: [100, 150]
-  #       # motion_blur: {max_kernel_size: 3}
-  #   warped_pair:
-  #     enable: true # true
-  #     params:
-  #       translation: true
-  #       rotation: true
-  #       scaling: true
-  #       perspective: true
-  #       scaling_amplitude: 0.2
-  #       perspective_amplitude_x: 0.2
-  #       perspective_amplitude_y: 0.2
-  #       patch_ratio: 0.85
-  #       max_angle: 1.57
-  #       allow_artifacts: true
-  #     valid_border_margin: 3
-
-  # heatmap:
-  #   gaussian_blur:
-  #     enable: False
-  #     multi_enable: False
-  #     sigma: 1.0 # 1.0 3.2
-  #     octave: 5
-  #     ratio: 0.5
-  #     scale_aware: False
-  #   interval: 100
+  train_num_workers: 16
+  val_num_workers: 16
 
 
 model:
-  name: mlp_ma # fpn_inception
+  name: mlp_ma_pos
   network_architecture:
     en_embed_dims: [3,32,64,128,256]
     grid_size: [8,8]
@@ -131,7 +39,7 @@ model:
     name: adam
     lr: 0.0001
     weight_decay: 0.0005
-    total_epochs: 800
+    total_epochs: 100
     decay_step_list: [0.6, 0.8]
     warmup_epoch: 4
     lr_decay: 0.1
@@ -141,18 +49,17 @@ model:
     start_epoch: 1300 # 50
     min_lr: 0.0000001
     decay_rate: 0.5
-    # max_epoch: 1600
   anchor_loss: softmax
+  usp_loss:
+    downsample: 8
+    image_shape: [256,256]
+    correspond: 8
+    usp_weight: 2.0
+    position_weight: 1.0
+    score_weight: 4.0
+    rep_weight: 2.0
   cell_size: 8
   nms_size: 15
   
 ckpt_save_interval: 10
 max_ckpt_save_num: 30
-# restore_ckpt: True
-# reset_epoch: False
-# pretrained: logs/train_test_val_repeat/checkpoints/1126_checkpoint.h5
-# max_epoch: 1600 # 200
-# val_enable: True
-# val_interval: 1
-
-# save_interval: 200
