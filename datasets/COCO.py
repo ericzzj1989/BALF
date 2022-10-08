@@ -8,12 +8,15 @@ from datasets import base_dataset
 
 class COCO(base_dataset.base_dataset):
     def get_image_paths(self):
+        valid_val_images_name = open(self.dataset_cfg['valid_val_split_file']).read()
         images_info = []
         for r, d, f in os.walk(Path(self.dataset_cfg['images_path'])):
             if self.task not in r:
                 continue
             for file_name in f:
                 if file_name.endswith(".JPEG") or file_name.endswith(".jpg") or file_name.endswith(".png"):
+                    if self.task == 'val' and Path(file_name).stem not in valid_val_images_name:
+                        continue
                     images_info.append(Path(r, file_name))
 
         src_idx = np.random.permutation(len(np.asarray(images_info)))
@@ -29,7 +32,7 @@ class COCO(base_dataset.base_dataset):
             # num = len(self.images_paths)
             num = 9000
         else:
-            num = 3000
+            num = len(self.images_paths)
         return num, self.images_paths[:num]
     
     def __getitem__(self, index):
@@ -52,8 +55,6 @@ class COCO(base_dataset.base_dataset):
             while incorrect_h:
 
                 src_BGR = dataset_utils.read_bgr_image(str(image_path))
-                if src_BGR.shape[0] < patch_size or src_BGR.shape[1] < patch_size:
-                    continue
                 src_RGB = dataset_utils.bgr_to_rgb(src_BGR)
 
                 source_shape = src_RGB.shape

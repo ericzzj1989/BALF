@@ -4,13 +4,14 @@ data:
   COCO:
     images_path: data/COCO
     labels_path: data/COCO_raw_ground_truth
+    valid_val_split_file: datasets/coco_valid_val_image_names.txt
+    patch_size: 192
 
   GOPRO:
     images_path: data/GOPRO_Large/train/
     sequences_split_path: datasets/GOPRO_sequences_split
     labels_path: data/GOPRO_raw_ground_truth/train
-
-  patch_size: 256
+    patch_size: 256
 
   homographic:
     perspective: 0.2
