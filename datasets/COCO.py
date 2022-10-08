@@ -15,7 +15,13 @@ class COCO(base_dataset.base_dataset):
                 continue
             for file_name in f:
                 if file_name.endswith(".JPEG") or file_name.endswith(".jpg") or file_name.endswith(".png"):
-                    if self.task == 'val' and Path(file_name).stem not in valid_val_images_name:
+                    image_path = Path(r, file_name)
+                    image = dataset_utils.read_bgr_image(str(image_path))
+                    if self.task == 'train':
+                        image_size = 256
+                    else:
+                        image_size = 512
+                    if image.shape[0] < image_size or image.shape[1] < image_size:
                         continue
                     images_info.append(Path(r, file_name))
 
@@ -46,9 +52,9 @@ class COCO(base_dataset.base_dataset):
 
         image_path = self.images_paths[index]
 
-        correct_patch = False
+        incorrect_patch = True
         counter = -1
-        while counter < 10:
+        while incorrect_patch:
             counter += 1
             incorrect_h = True
 
@@ -120,13 +126,14 @@ class COCO(base_dataset.base_dataset):
             heatmap_dst_patch = dst_heatmap[int(point_dst[0] - patch_size / 2): int(point_dst[0] + patch_size / 2),
                                             int(point_dst[1] - patch_size / 2): int(point_dst[1] + patch_size / 2)]
             
-            if im_src_patch.shape[0] != patch_size or im_src_patch.shape[1] != patch_size:
-                continue
+            if im_src_patch.shape[0] == patch_size and im_src_patch.shape[1] == patch_size and\
+                im_dst_patch.shape[0] == patch_size and im_dst_patch.shape[1] == patch_size and\
+                    heatmap_src_patch.shape[0] == patch_size and heatmap_src_patch.shape[1] == patch_size and\
+                        heatmap_dst_patch.shape[0] == patch_size and heatmap_dst_patch.shape[1] == patch_size:
+                            incorrect_patch = False
 
-            correct_patch = True
-            break
 
-        if correct_patch:
+        if incorrect_patch == False:
             homography = np.dot(h_src_translation, np.dot(h, h_dst_translation))
 
             homography_dst_2_src = homography.astype('float32')
