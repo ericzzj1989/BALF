@@ -37,10 +37,10 @@ class COCO(base_dataset.base_dataset):
     
     def __getitem__(self, index):
         if self.task == 'train':
-            patch_size = self.config['patch_size']
+            patch_size = self.dataset_cfg['patch_size']
             self.counter = 0
         else:
-            patch_size = 2 * self.config['patch_size']
+            patch_size = 2 * self.dataset_cfg['patch_size']
             self.counter = 0
 
 
