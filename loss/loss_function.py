@@ -74,8 +74,8 @@ class ScoreLoss(object):
         a_pixel_coor = (self.cell + a_p) * self.downsample
         b_pixel_coor = (self.cell + b_p) * self.downsample
 
-        a_pixel_coor[torch.where(a_pixel_coor>255.5)] = 255.0
-        b_pixel_coor[torch.where(b_pixel_coor>255.5)] = 255.0
+        a_pixel_coor[torch.where(a_pixel_coor>(self.image_shape[0]-0.5))] = self.image_shape[0]-1.0
+        b_pixel_coor[torch.where(b_pixel_coor>(self.image_shape[1]-0.5))] = self.image_shape[1]-1.0
         
         # if (len(torch.where(a_pixel_coor.round().long()>255)[0])>0):
         #     print('a pixel_pos error 255: ', a_pixel_coor[torch.where(a_pixel_coor.round().long()>255)])
