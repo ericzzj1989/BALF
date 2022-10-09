@@ -44,7 +44,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = get_model.load_model(cfg['model'])
 model.to(device)
 
-usp_loss = loss_function.ScoreLoss(device, cfg['model']['usp_loss'])
+usp_loss = loss_function.ScoreLoss(device, cfg['model']['unsuper_loss'])
 
 optimizer = train_utils.build_optimizer(filter(lambda p: p.requires_grad, model.parameters()), cfg['model']['optimizer'])
 

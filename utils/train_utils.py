@@ -375,7 +375,7 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
 
 
         if usp_loss is not None:
-            unsuper_loss = usp_loss.loss(
+            unsuper_loss, ussuper_loss_item = usp_loss.loss(
                 src_outputs_score_batch, dst_outputs_score_batch,
                 src_outputs_pos_batch, dst_outputs_pos_batch,
                 h_src_2_dst_batch, h_dst_2_src_batch,
@@ -403,6 +403,8 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
             tb_log.add_scalar('src_anchor_loss', src_anchor_loss, cur_epoch)
             tb_log.add_scalar('dst_anchor_loss', dst_anchor_loss, cur_epoch)
             tb_log.add_scalar('unsuper_loss', unsuper_loss, cur_epoch)
+            tb_log.add_scalar('usp_loss', ussuper_loss_item[0], cur_epoch)
+            tb_log.add_scalar('uni_loss', ussuper_loss_item[1], cur_epoch)
 
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
             dst_image_grid = torchvision.utils.make_grid(images_dst_batch)

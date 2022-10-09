@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -29,6 +30,7 @@ class ScoreLoss(object):
         self.position_weight = loss_config['position_weight']
         self.score_weight = loss_config['score_weight']
         self.rep_weight = loss_config['rep_weight']
+        self.uni_weight = loss_config['uni_weight']
         self.eps = 1e-12
 
         # create mesh grid
@@ -40,18 +42,20 @@ class ScoreLoss(object):
     def loss(self, src_outputs_score_batch, dst_outputs_score_batch, src_outputs_pos_batch, dst_outputs_pos_batch, h_src_2_dst_batch, h_dst_2_src_batch, cell_size):
         batch_size = src_outputs_score_batch.shape[0]
         loss = 0
+        loss_batch_array = np.zeros((2,))
 
         src_score_maps_batch = F.relu(train_utils.depth_to_space_without_softmax(src_outputs_score_batch, cell_size))
         dst_score_maps_batch = F.relu(train_utils.depth_to_space_without_softmax(dst_outputs_score_batch, cell_size))
 
         for i in range(batch_size):
-            loss_batch = self.scoreloss(
+            loss_batch, loss_item = self.scoreloss(
                 src_score_maps_batch[i], src_outputs_pos_batch[i],
                 dst_score_maps_batch[i], dst_outputs_pos_batch[i],
                 h_src_2_dst_batch[i])
             loss += loss_batch
+            loss_batch_array += loss_item
         
-        return loss / batch_size
+        return loss / batch_size, loss_batch_array / batch_size
 
 
     def scoreloss(self, a_score_map, a_p, b_score_map, b_p, mat):
@@ -62,9 +66,24 @@ class ScoreLoss(object):
 
         distance_matrix = self.get_distance_matrix(position_a, position_b)  # c h w -> c p p
 
-        usp_loss = self.usp_weight * self.usploss(a_s, b_s, distance_matrix)
+        batch_loss = 0
+        loss_item = []
 
-        return usp_loss
+        if self.usp_weight > 0:
+            usp_loss = self.usp_weight * self.usploss(a_s, b_s, distance_matrix)
+            batch_loss += usp_loss
+            loss_item.append(usp_loss.item())
+        else:
+            loss_item.append(0.)
+        
+        if self.uni_weight > 0:
+            uni_loss = self.uni_weight * self.uni_loss(a_p, b_p)
+            batch_loss += uni_loss
+            loss_item.append(uni_loss.item())
+        else:
+            loss_item.append(0.)
+
+        return batch_loss, np.array(loss_item)
 
 
     def get_feature_map_score_from_score_map(self, a_score_map, a_p, b_score_map, b_p):
@@ -149,3 +168,22 @@ class ScoreLoss(object):
         reshape_bs = b_s.reshape(-1)
 
         return reshape_as[id], reshape_bs[a2b_min_id[id]], distance_matrix[id, a2b_min_id[id]]
+
+
+    def uni_loss(self, a_p, b_p):
+        c = a_p.shape[0]
+        reshape_pa = a_p.reshape((c, -1)).permute(1, 0)  # c h w -> c p -> p c where c=2
+        reshape_pb = b_p.reshape((c, -1)).permute(1, 0)
+
+        loss = (self.get_uni_xy(reshape_pa[:, 0]) + self.get_uni_xy(reshape_pa[:, 1]))
+        loss += (self.get_uni_xy(reshape_pb[:, 0]) + self.get_uni_xy(reshape_pb[:, 1]))
+
+        return loss
+
+    def get_uni_xy(self, position):
+        idx = torch.argsort(position)  # 返回的索引是0开始的 上面的方式loss会略大0.000x级别
+        idx = idx.float()
+        p = position.shape[0]
+        uni_l2 = torch.mean(torch.pow(position - (idx / p), 2))
+
+        return uni_l2

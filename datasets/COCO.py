@@ -36,7 +36,7 @@ class COCO(base_dataset.base_dataset):
         print("Get {} images from {}".format(len(self.images_paths), self.dataset_cfg['images_path']))
         if self.task == 'train':
             # num = len(self.images_paths)
-            num = 9000
+            num = 500
         else:
             num = len(self.images_paths)
         return num, self.images_paths[:num]

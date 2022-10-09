@@ -18,7 +18,7 @@ data:
     rotation: 25
     scale: 0.2
     
-  train_batch_size: 4
+  train_batch_size: 1
   val_batch_size: 1
 
   train_num_workers: 12
@@ -47,18 +47,19 @@ model:
     lr_clip: 0.0000001
   scheduler:
     name: linear
-    start_epoch: 1300 # 50
+    start_epoch: 60 # 50
     min_lr: 0.0000001
     decay_rate: 0.5
   anchor_loss: softmax
-  usp_loss:
+  unsuper_loss:
     downsample: 8
-    image_shape: [256,256]
+    image_shape: [192,192]
     correspond: 8
-    usp_weight: 2.0
+    usp_weight: 1.0
     position_weight: 1.0
-    score_weight: 4.0
+    score_weight: 2.0
     rep_weight: 2.0
+    uni_weight: 100
   cell_size: 8
   nms_size: 15
   
