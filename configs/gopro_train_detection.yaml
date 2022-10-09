@@ -18,7 +18,7 @@ data:
     rotation: 25
     scale: 0.2
     
-  train_batch_size: 1
+  train_batch_size: 4
   val_batch_size: 1
 
   train_num_workers: 12

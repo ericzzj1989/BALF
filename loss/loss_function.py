@@ -23,8 +23,8 @@ class ScoreLoss(object):
     def __init__(self, devie, loss_config):
         self.device = devie
         self.downsample = loss_config['downsample']
-        self.image_shape = loss_config['image_shape']
-        self.score_shape = [1, self.image_shape[0] // self.downsample, self.image_shape[1] // self.downsample]
+        self.image_shape = loss_config['image_shape'] # 192 or 256
+        self.score_shape = [1, self.image_shape[0] // self.downsample, self.image_shape[1] // self.downsample] # 24 or 32
         self.correspond = loss_config['correspond']
         self.usp_weight = loss_config['usp_weight']
         self.position_weight = loss_config['position_weight']
@@ -87,25 +87,37 @@ class ScoreLoss(object):
 
 
     def get_feature_map_score_from_score_map(self, a_score_map, a_p, b_score_map, b_p):
-        a_s = torch.tensor(self.score_shape, dtype=torch.float32).to(self.device)
-        b_s = torch.tensor(self.score_shape, dtype=torch.float32).to(self.device)
+        # a_s = torch.tensor(self.score_shape, dtype=torch.float32).to(self.device)
+        # b_s = torch.tensor(self.score_shape, dtype=torch.float32).to(self.device)
+
+
+        # assert(a_s.shape[1] == b_s.shape[1] and a_s.shape[2] == b_s.shape[2])
+        # assert(a_s.shape[1] == self.score_shape[1] and a_s.shape[2] == self.score_shape[2])
+        # assert(a_p.shape == b_p.shape and (a_p.shape[1] == (self.image_shape[0] // self.downsample)) and (a_p.shape[2] == (self.image_shape[1] // self.downsample)))
+
 
         a_pixel_coor = (self.cell + a_p) * self.downsample
         b_pixel_coor = (self.cell + b_p) * self.downsample
 
-        a_pixel_coor[torch.where(a_pixel_coor>(self.image_shape[0]-0.5))] = self.image_shape[0]-1.0
-        b_pixel_coor[torch.where(b_pixel_coor>(self.image_shape[1]-0.5))] = self.image_shape[1]-1.0
+        a_pixel_coor[torch.where(a_pixel_coor>=(self.image_shape[0]-0.5))] = self.image_shape[0]-1.0
+        b_pixel_coor[torch.where(b_pixel_coor>=(self.image_shape[1]-0.5))] = self.image_shape[1]-1.0
         
-        # if (len(torch.where(a_pixel_coor.round().long()>255)[0])>0):
-        #     print('a pixel_pos error 255: ', a_pixel_coor[torch.where(a_pixel_coor.round().long()>255)])
-        # if (len(torch.where(b_pixel_coor.round().long()>255)[0])>0):
-        #     print('b pixel_pos error 255: ', b_pixel_coor[torch.where(b_pixel_coor.round().long()>255)])
+        if (len(torch.where(a_pixel_coor.round().long()>=self.image_shape[0])[0])!=0):
+            print('a pixel_pos error 255: ', a_pixel_coor[torch.where(a_pixel_coor.round().long()>=self.image_shape[0])])
+        if (len(torch.where(b_pixel_coor.round().long()>=self.image_shape[1])[0])!=0):
+            print('b pixel_pos error 255: ', b_pixel_coor[torch.where(b_pixel_coor.round().long()>=self.image_shape[1])])
 
-        # assert(len(torch.where(a_pixel_coor.round().long()>255)[0])==0)
-        # assert(len(torch.where(b_pixel_coor.round().long()>255)[0])==0)
+        assert(len(torch.where(a_pixel_coor.round().long()>=self.image_shape[0])[0])==0)
+        assert(len(torch.where(b_pixel_coor.round().long()>=self.image_shape[1])[0])==0)
 
         a_s = a_score_map[:,a_pixel_coor[1,:,:].round().long(), a_pixel_coor[0,:,:].round().long()]
         b_s = b_score_map[:,b_pixel_coor[1,:,:].round().long(), b_pixel_coor[0,:,:].round().long()]
+
+        a_s = a_s.to(self.device)
+        b_s = b_s.to(self.device)
+
+        print('119 a_s shape: ', a_s.shape)
+        print('120 b_s shape: ', b_s.shape)
 
         assert(a_s.shape[1] == b_s.shape[1] and a_s.shape[2] == b_s.shape[2])
         assert(a_s.shape[1] == (self.image_shape[0] // self.downsample) and a_s.shape[2] == (self.image_shape[1] // self.downsample))
@@ -158,10 +170,14 @@ class ScoreLoss(object):
 
     def get_point_pair(self, a_s, b_s, distance_matrix):
         a2b_min_id = torch.argmin(distance_matrix, dim=1) # min sort index of b
+        
         len_p = len(a2b_min_id) # 1024=32*32
 
+        if len(torch.where(a2b_min_id>=len_p)[0]) != 0:
+            print('a2b_min_id error: ', a2b_min_id[torch.where(a2b_min_id>=len_p)])
+
         assert(len_p == (a_s.shape[1]*a_s.shape[2]))
-        assert(len(torch.where(a2b_min_id>(len_p-1))[0]) == 0)
+        assert(len(torch.where(a2b_min_id>=len_p)[0]) == 0)
 
         id = distance_matrix[list(range(len_p)), a2b_min_id] < self.correspond # select index flag of distance < correspond
         reshape_as = a_s.reshape(-1)

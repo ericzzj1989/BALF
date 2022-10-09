@@ -20,7 +20,7 @@ class GOPRO(COCO.COCO):
     def get_image_paths(self):
         images_info = []
 
-        logging.info('Get {} images from the below path:'.fomat(self.task))
+        logging.info('Get {} images from the below path:'.format(self.task))
         for r, d, f in os.walk(self.dataset_cfg['images_path']):
             if 'blur_gamma' in r or 'sharp' in r:
                 if r.split('/')[-2] not in self.sequences_name:
@@ -39,4 +39,4 @@ class GOPRO(COCO.COCO):
         self.get_sequence_names()
         self.images_paths = self.get_image_paths()
         print("Get {} images from {}".format(len(self.images_paths), self.dataset_cfg['images_path']))
-        return len(self.images_paths), self.images_paths
+        return len(self.images_paths[:200]), self.images_paths[:200]
