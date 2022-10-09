@@ -116,9 +116,6 @@ class ScoreLoss(object):
         a_s = a_s.to(self.device)
         b_s = b_s.to(self.device)
 
-        print('119 a_s shape: ', a_s.shape)
-        print('120 b_s shape: ', b_s.shape)
-
         assert(a_s.shape[1] == b_s.shape[1] and a_s.shape[2] == b_s.shape[2])
         assert(a_s.shape[1] == (self.image_shape[0] // self.downsample) and a_s.shape[2] == (self.image_shape[1] // self.downsample))
 

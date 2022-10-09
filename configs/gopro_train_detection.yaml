@@ -5,6 +5,7 @@ data:
     images_path: data/COCO
     labels_path: data/COCO_raw_ground_truth
     valid_val_split_file: datasets/coco_valid_val_image_names.txt
+    valid_train_split_file: datasets/coco_valid_train_image_names.txt
     patch_size: 192
 
   GOPRO:
@@ -55,11 +56,11 @@ model:
     downsample: 8
     image_shape: [192,192]
     correspond: 8
-    usp_weight: 1.0
+    usp_weight: 2.0
     position_weight: 1.0
     score_weight: 2.0
     rep_weight: 2.0
-    uni_weight: 100
+    uni_weight: 0.25
   cell_size: 8
   nms_size: 15
   

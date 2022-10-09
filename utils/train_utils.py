@@ -220,6 +220,80 @@ def compute_repeatability_with_nms(src_scores_np, dst_scores_np, homography, mas
     return rep_s_nms, rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms
 
 
+
+def get_position(p_map, downsample=8):
+    x = torch.arange(p_map.shape[2], requires_grad=False, device=p_map.device)
+    y = torch.arange(p_map.shape[1], requires_grad=False, device=p_map.device)
+    y, x = torch.meshgrid([y, x])
+    cell = torch.stack([x, y], dim=0)
+
+    return (cell + p_map) * downsample
+
+def get_score_map(score_map, position, downsample=8): # score_map: 1,512,512, position: 2 32 32
+    pixel_coor = get_position(position, downsample).to(position.device)
+
+    pixel_coor[torch.where(pixel_coor>=(score_map.shape[1]-0.5))] = score_map.shape[1]-1.0
+
+    score = score_map[:, pixel_coor[1,:,:].round().long(), pixel_coor[0,:,:].round().long()]
+
+    assert(score.shape[1] == (score_map.shape[1] // downsample) and score.shape[2] == (score_map.shape[2] // downsample))
+
+    return score # score: 1,32,32
+
+def get_coordinates(positions, scores, scale_value=1., num_points=1000, threshold=-1, order_coord='xysr'):
+    scores = scores.squeeze(0)
+    indexes = geometry_tools.find_index_higher_scores(scores, num_points=num_points, threshold=threshold)
+    new_indexes = []
+    for ind in indexes:
+        position = positions[:,ind[0],ind[1]]
+        score = scores[ind[0],ind[1]]
+        if order_coord == 'xysr':
+            tmp = [position[0], position[1], scale_value, score]
+        elif order_coord == 'yxsr':
+            tmp = [position[1], position[0], scale_value, score]
+
+        new_indexes.append(tmp)
+
+    indexes = np.asarray(new_indexes)
+
+    return np.asarray(indexes)
+
+def compute_repeatability_with_direct_position(
+    src_score_maps, src_outputs_pos_batch,
+    dst_score_maps, dst_outputs_pos_batch, homography,
+    num_points, order_coord):
+    
+    rep_s = []
+    rep_m = []
+    error_overlap_s = []
+    error_overlap_m = []
+    possible_matches = []
+
+
+    src_positions = get_position(src_outputs_pos_batch[0,:,:,:]) # 2 32 32
+    src_scores = get_score_map(src_score_maps[0,:,:,:], src_outputs_pos_batch[0,:,:,:]) # 32,32
+
+    src_pts = get_coordinates(src_positions.cpu().numpy(), src_scores.cpu().numpy(), num_points=num_points, order_coord=order_coord)
+
+    dst_positions = get_position(dst_outputs_pos_batch[0,:,:,:]) # 2 32 32
+    dst_scores = get_score_map(dst_score_maps[0,:,:,:], dst_outputs_pos_batch[0,:,:,:]) # 32,32
+
+    dst_pts = get_coordinates(dst_positions.cpu().numpy(), dst_scores.cpu().numpy(), num_points=num_points, order_coord=order_coord)
+
+    dst_to_src_pts = geometry_tools.apply_homography_to_points(dst_pts, homography)
+
+    repeatability_results = repeatability_tools.compute_repeatability(src_pts, dst_to_src_pts)
+
+    rep_s.append(repeatability_results['rep_single_scale'])
+    rep_m.append(repeatability_results['rep_multi_scale'])
+    error_overlap_s.append(repeatability_results['error_overlap_single_scale'])
+    error_overlap_m.append(repeatability_results['error_overlap_multi_scale'])
+    possible_matches.append(repeatability_results['possible_matches'])
+
+    return rep_s, rep_m, error_overlap_s, error_overlap_m, possible_matches
+
+
+
 def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_size=8, nms_size=15, num_points=25):
     rep_s = []
     rep_m = []
@@ -300,6 +374,11 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
             mask_src, mask_dst, nms_size, num_points
         )
         
+        rep_s_pos, rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos = compute_repeatability_with_direct_position(
+            src_score_maps, src_outputs_pos_batch, dst_score_maps, dst_outputs_pos_batch, homography,
+            num_points=num_points, order_coord='xysr'
+        )
+
         if tb_log is not None and idx == 0:
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
             dst_image_grid = torchvision.utils.make_grid(images_dst_batch)
@@ -321,7 +400,9 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
     return np.asarray(rep_s).mean(), np.asarray(rep_m).mean(), np.asarray(error_overlap_s).mean(),\
            np.asarray(error_overlap_m).mean(), np.asarray(possible_matches).mean(),\
            np.asarray(rep_s_nms).mean(), np.asarray(rep_m_nms).mean(), np.asarray(error_overlap_s_nms).mean(),\
-           np.asarray(error_overlap_m_nms).mean(), np.asarray(possible_matches_nms).mean()
+           np.asarray(error_overlap_m_nms).mean(), np.asarray(possible_matches_nms).mean(),\
+           np.asarray(rep_s_pos).mean(), np.asarray(rep_m_pos).mean(), np.asarray(error_overlap_s_pos).mean(),\
+           np.asarray(error_overlap_m_pos).mean(), np.asarray(possible_matches_pos).mean()
 
 
 

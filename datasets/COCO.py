@@ -8,26 +8,24 @@ from datasets import base_dataset
 
 class COCO(base_dataset.base_dataset):
     def get_image_paths(self):
-        valid_val_images_name = open(self.dataset_cfg['valid_val_split_file']).read()
+        if self.task == 'train':
+            valid_images_name = open(self.dataset_cfg['valid_train_split_file']).read()
+        else:
+            valid_images_name = open(self.dataset_cfg['valid_val_split_file']).read()
+        # print(valid_images_name)
         images_info = []
         for r, d, f in os.walk(Path(self.dataset_cfg['images_path'])):
             if self.task not in r:
                 continue
             for file_name in f:
                 if file_name.endswith(".JPEG") or file_name.endswith(".jpg") or file_name.endswith(".png"):
-                    image_path = Path(r, file_name)
-                    image = dataset_utils.read_bgr_image(str(image_path))
-                    if self.task == 'train':
-                        image_size = 256
-                    else:
-                        image_size = 512
-                    if image.shape[0] < image_size or image.shape[1] < image_size:
+                    if Path(r, file_name).stem not in valid_images_name:
                         continue
                     images_info.append(Path(r, file_name))
 
         src_idx = np.random.permutation(len(np.asarray(images_info)))
         images_info = np.asarray(images_info)[src_idx]
-        print('images_info:\n',images_info)
+        print('images_info:\n', images_info)
 
         return images_info
     
@@ -36,7 +34,7 @@ class COCO(base_dataset.base_dataset):
         print("Get {} images from {}".format(len(self.images_paths), self.dataset_cfg['images_path']))
         if self.task == 'train':
             # num = len(self.images_paths)
-            num = 1000
+            num = 9000
         else:
             num = len(self.images_paths)
         return num, self.images_paths[:num]
