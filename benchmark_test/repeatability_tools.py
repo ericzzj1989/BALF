@@ -71,6 +71,8 @@ def apply_nms_fast(score_map, dist_thresh):
     pts_nms = out
     output_score_map = np.zeros_like(score_map)
     for idx in range(out.shape[1]):
+        if pts_nms[2, idx] < 0.015:
+            continue
         output_score_map[pts_nms[1, idx].astype(np.int), pts_nms[0, idx].astype(np.int)] = pts_nms[2, idx]
 
     return output_score_map

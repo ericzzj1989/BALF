@@ -39,7 +39,9 @@ class ScoreLoss(object):
         y, x = torch.meshgrid([y, x])
         self.cell = torch.stack([x, y], dim=0) # shape 2,256/8,256/8=2,32,32
 
-    def loss(self, src_outputs_score_batch, dst_outputs_score_batch, src_outputs_pos_batch, dst_outputs_pos_batch, h_src_2_dst_batch, h_dst_2_src_batch, cell_size):
+    def loss(self, src_outputs_score_batch, dst_outputs_score_batch,
+             src_outputs_pos_batch, dst_outputs_pos_batch, h_src_2_dst_batch, h_dst_2_src_batch, cell_size,
+             src_flags, dst_flags):
         batch_size = src_outputs_score_batch.shape[0]
         loss = 0
         loss_batch_array = np.zeros((2,))
@@ -51,14 +53,14 @@ class ScoreLoss(object):
             loss_batch, loss_item = self.scoreloss(
                 src_score_maps_batch[i], src_outputs_pos_batch[i],
                 dst_score_maps_batch[i], dst_outputs_pos_batch[i],
-                h_src_2_dst_batch[i])
+                h_src_2_dst_batch[i], src_flags[i], dst_flags[i])
             loss += loss_batch
             loss_batch_array += loss_item
         
         return loss / batch_size, loss_batch_array / batch_size
 
 
-    def scoreloss(self, a_score_map, a_p, b_score_map, b_p, mat):
+    def scoreloss(self, a_score_map, a_p, b_score_map, b_p, mat, a_flags, b_flags):
         a_s, b_s = self.get_feature_map_score_from_score_map(a_score_map, a_p, b_score_map, b_p)
 
         position_a = self.get_position(a_p, self.cell, self.downsample, flag='A', mat=mat)  # c h w, where c==2
@@ -70,7 +72,7 @@ class ScoreLoss(object):
         loss_item = []
 
         if self.usp_weight > 0:
-            usp_loss = self.usp_weight * self.usploss(a_s, b_s, distance_matrix)
+            usp_loss = self.usp_weight * self.usploss(a_s, b_s, distance_matrix, a_flags, b_flags)
             batch_loss += usp_loss
             loss_item.append(usp_loss.item())
         else:
@@ -144,8 +146,8 @@ class ScoreLoss(object):
         dis = torch.sqrt(torch.pow(x, 2) + torch.pow(y, 2) + self.eps)
         return dis # [32*32,32*32]
 
-    def usploss(self, a_s, b_s, distance_matrix):
-        reshape_as_k, reshape_bs_k, d_k = self.get_point_pair(a_s, b_s, distance_matrix)  # p -> k
+    def usploss(self, a_s, b_s, distance_matrix, a_flags, b_flags):
+        reshape_as_k, reshape_bs_k, d_k = self.get_point_pair(a_s, b_s, distance_matrix, a_flags, b_flags)  # p -> k
 
         if len(d_k) != 0:
             position_k_loss = torch.mean(d_k)
@@ -163,9 +165,48 @@ class ScoreLoss(object):
             total_usp = position_k_loss + score_k_loss + usp_k_loss
             return total_usp
         else:
-            return torch.tensor([0]).float().to(self.device)
+            return torch.tensor(0.).float().to(self.device)
 
-    def get_point_pair(self, a_s, b_s, distance_matrix):
+    def get_point_pair(self, a_s, b_s, distance_matrix, a_flags, b_flags):
+        a2b_min_id = torch.argmin(distance_matrix, dim=1) # min sort index of b
+        
+        len_p = len(a2b_min_id) # 1024=32*32
+
+        if len(torch.where(a2b_min_id>=len_p)[0]) != 0:
+            print('a2b_min_id error: ', a2b_min_id[torch.where(a2b_min_id>=len_p)])
+
+        assert(len_p == (a_s.shape[1]*a_s.shape[2]))
+        assert(len(torch.where(a2b_min_id>=len_p)[0]) == 0)
+
+        corres_flag = distance_matrix[list(range(len_p)), a2b_min_id] < self.correspond # select index flag of distance < correspond
+        
+        reshape_as = a_s.reshape(-1)
+        reshape_bs = b_s.reshape(-1)
+        reshape_aflags = a_flags.reshape(-1)
+        reshape_bflags = b_flags.reshape(-1)
+
+        # print('\nreshape_as[id] shape: ', reshape_as[corres_flag].shape)
+        # print('a2b_min_id[id] shape: ', a2b_min_id[corres_flag].shape)
+
+
+        a_id = torch.tensor(list(range(len_p)))
+        valid_a_flag = reshape_aflags & corres_flag
+        f_a_id = a_id[valid_a_flag] # a_id: 0-575
+        a2b_min_id_b = a2b_min_id[valid_a_flag]
+
+        final_valid_flag = reshape_bflags[a2b_min_id_b]
+
+        final_id_a = f_a_id[final_valid_flag]
+        final_id_b = a2b_min_id_b[final_valid_flag]
+
+        # print('final_id_a shape: ', final_id_a.shape)
+        # print('final_id_b shape: ', final_id_b.shape)
+
+        assert(final_id_a.shape == final_id_b.shape)
+        return reshape_as[final_id_a], reshape_bs[final_id_b], distance_matrix[final_id_a, final_id_b]
+
+
+    def backup_get_point_pair(self, a_s, b_s, distance_matrix, a_flags, b_flags):
         a2b_min_id = torch.argmin(distance_matrix, dim=1) # min sort index of b
         
         len_p = len(a2b_min_id) # 1024=32*32

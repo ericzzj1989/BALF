@@ -13,9 +13,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 
-from benchmark_test import repeatability_tools, geometry_tools
+from benchmark_test import repeatability_tools, geometry_tools, test_utils
 from loss import loss_function
 from utils import common_utils
+from datasets import dataset_utils
 
 
 def build_optimizer(params, optim_cfg):
@@ -159,9 +160,15 @@ def depth_to_space_without_softmax(score_maps, cell_size=8):
         is_batch = True
 
     if is_batch:
-        nodust = score_maps[:, :-1, :, :]
+        if score_maps.shape[1] == 65:
+            nodust = score_maps[:, :-1, :, :]
+        elif score_maps.shape[1] == 64:
+            nodust = score_maps
     else:
-        nodust = score_maps[:-1, :, :].unsqueeze(0)
+        if score_maps.shape[0] == 65:
+            nodust = score_maps[:-1, :, :].unsqueeze(0)
+        elif score_maps.shape[0] == 64:
+            nodust = score_maps.unsqueeze(0)
 
     depth2space = DepthToSpace(cell_size)
     scores = depth2space(nodust)
@@ -189,6 +196,27 @@ def space_to_depth(heatmaps, cell_size=8, add_dustbin=True):
     
     score_maps = heatmaps.squeeze(0) if not is_batch else heatmaps
     return score_maps # [batch, 65, Hc, Wc]
+
+def heatmap_flag(heatmaps, cell_size=8):
+    is_batch = True
+    if len(heatmaps.shape) == 3:
+        is_batch = False
+        heatmaps = heatmaps.unsqueeze(0)
+
+    batch_size, _, H, W = heatmaps.shape # labels [batch, 1, H, W]
+    Hc, Wc = H // cell_size, W // cell_size
+    space2depth = SpaceToDepth(cell_size)
+    heatmaps = space2depth(heatmaps)
+    # if add_dustbin:
+    dustbin = heatmaps.sum(dim=1)
+    dustbin = 1 - dustbin
+    dustbin[dustbin < 1.] = 0
+    dustbin = 1 - dustbin
+    flag = dustbin.view(batch_size, 1, Hc, Wc)
+    
+    flags = flag.squeeze(0) if not is_batch else flag
+    flags = flags.type(torch.bool)
+    return flags # [batch, 1, Hc, Wc]
 
 
 def compute_repeatability_with_nms(src_scores_np, dst_scores_np, homography, mask_src, mask_dst, nms_size, num_points):
@@ -438,8 +466,8 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
         model.train()
         optimizer.zero_grad()
 
-        src_outputs_score_batch, src_outputs_pos_batch  = model(images_src_batch)
-        dst_outputs_score_batch, dst_outputs_pos_batch = model(images_dst_batch)
+        src_outputs_score_batch  = model(images_src_batch)
+        dst_outputs_score_batch = model(images_dst_batch)
 
 
         src_input_heatmaps_batch = space_to_depth(heatmap_src_patch, cell_size=cell_size, add_dustbin=add_dustbin)
@@ -456,14 +484,16 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
 
 
         if usp_loss is not None:
-            unsuper_loss, ussuper_loss_item = usp_loss.loss(
+            src_flags = heatmap_flag(heatmap_src_patch, cell_size=cell_size)
+            dst_flags = heatmap_flag(heatmap_dst_patch, cell_size=cell_size)
+            unsuper_loss, unsuper_loss_item = usp_loss.loss(
                 src_outputs_score_batch, dst_outputs_score_batch,
                 src_outputs_pos_batch, dst_outputs_pos_batch,
                 h_src_2_dst_batch, h_dst_2_src_batch,
-                cell_size
+                cell_size, src_flags, dst_flags
             )
         else:
-            unsuper_loss = torch.tensor([0]).float().to(device)
+            unsuper_loss = torch.tensor(0.0).float().to(device)
 
 
         loss = src_anchor_loss + dst_anchor_loss + unsuper_loss
@@ -483,9 +513,9 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
             tb_log.add_scalar('total_loss', loss, cur_epoch)
             tb_log.add_scalar('src_anchor_loss', src_anchor_loss, cur_epoch)
             tb_log.add_scalar('dst_anchor_loss', dst_anchor_loss, cur_epoch)
-            tb_log.add_scalar('unsuper_loss', unsuper_loss, cur_epoch)
-            tb_log.add_scalar('usp_loss', ussuper_loss_item[0], cur_epoch)
-            tb_log.add_scalar('uni_loss', ussuper_loss_item[1], cur_epoch)
+            # tb_log.add_scalar('unsuper_loss', unsuper_loss, cur_epoch)
+            # tb_log.add_scalar('usp_loss', ussuper_loss_item[0], cur_epoch)
+            # tb_log.add_scalar('uni_loss', ussuper_loss_item[1], cur_epoch)
 
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
             dst_image_grid = torchvision.utils.make_grid(images_dst_batch)
@@ -504,7 +534,7 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
             tb_log.add_image('train_src_output_heatmap', src_outputs_score_maps_grid, cur_epoch)
             tb_log.add_image('train_dst_output_heatmap', dst_outputs_score_maps_grid, cur_epoch)
 
-        if output_dir is not None and idx % 100 == 0:
+        if output_dir is not None and idx % 20 == 0:
             feature_map_dir = str(output_dir) + '/feature_map/'
 
             feature_map_list = glob.glob(feature_map_dir + '/*.png')
@@ -516,8 +546,8 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
 
             post_fix = 'epoch'+str(cur_epoch)+'_'+'iter'+str(idx)
 
-            output1 = depth_to_space_without_softmax(src_outputs_score_batch.detach(), cell_size)
-            output2 = depth_to_space_without_softmax(dst_outputs_score_batch.detach(), cell_size)
+            output1 = F.relu(depth_to_space_without_softmax(src_outputs_score_batch.detach(), cell_size))
+            output2 = F.relu(depth_to_space_without_softmax(dst_outputs_score_batch.detach(), cell_size))
             deep_src = common_utils.remove_borders(output1, 16).cpu().detach().numpy()
             deep_dst = common_utils.remove_borders(output2, 16).cpu().detach().numpy()
 
@@ -565,3 +595,155 @@ def ckpt_state(model=None, optimizer=None, epoch=None, rep_s=0.):
     model_state = model.state_dict() if model is not None else None
 
     return {'epoch': epoch,  'model_state': model_state, 'optimizer_state': optim_state, 'repeatability': rep_s}
+
+
+
+
+def check_val_hsequences_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_size=8, nms_size=15, num_points=25, border_size=15):
+    rep_s = []
+    rep_m = []
+    error_overlap_s = []
+    error_overlap_m = []
+    possible_matches = []
+    disp_dict = {}
+    
+    counter_sequences = 0
+    iterate = tqdm(range(len(dataloader.sequences)), total=len(dataloader.sequences), desc="HSequences Eval")
+
+    ba = 0; cb =0; dc= 0; ed= 0; fe=0
+    for sequence_index in iterate:
+        sequence_data = dataloader.get_sequence_data(sequence_index)
+
+        counter_sequences += 1
+
+        sequence_name = sequence_data['sequence_name']
+        im_src_RGB_norm = sequence_data['im_src_RGB_norm']
+        images_dst_RGB_norm = sequence_data['images_dst_RGB_norm']
+        # h_src_2_dst = sequence_data['h_src_2_dst']
+        h_dst_2_src = sequence_data['h_dst_2_src']
+
+        for im_dst_index in range(len(images_dst_RGB_norm)):
+            a = time.time()
+            pts_src, src_outputs_score_maps = extract_detections(
+                im_src_RGB_norm, model, device,
+                cell_size=cell_size, nms_size=nms_size, num_points=num_points, border_size=border_size
+            )
+            pts_dst, dst_outputs_score_maps = extract_detections(
+                images_dst_RGB_norm[im_dst_index], model, device,
+                cell_size=cell_size, nms_size=nms_size, num_points=num_points, border_size=border_size
+            )
+
+            b = time.time()
+
+            mask_src, mask_dst = geometry_tools.create_common_region_masks(
+                h_dst_2_src[im_dst_index], im_src_RGB_norm.shape, images_dst_RGB_norm[im_dst_index].shape
+            )
+
+            c = time.time()
+
+            
+            pts_src = np.asarray(list(map(lambda x: [x[1], x[0], x[2], x[3]], pts_src)))
+            pts_dst = np.asarray(list(map(lambda x: [x[1], x[0], x[2], x[3]], pts_dst)))
+            
+            idx_src = repeatability_tools.check_common_points(pts_src, mask_src)
+            if idx_src.size == 0:
+                continue
+            pts_src = pts_src[idx_src]
+
+            idx_dst = repeatability_tools.check_common_points(pts_dst, mask_dst)
+            if idx_dst.size == 0:
+                continue
+            pts_dst = pts_dst[idx_dst]
+
+            d = time.time()
+
+            pts_src = np.asarray(list(map(lambda x: [x[1], x[0], x[2], x[3]], pts_src)))
+            pts_dst = np.asarray(list(map(lambda x: [x[1], x[0], x[2], x[3]], pts_dst)))
+
+            pts_dst_to_src = geometry_tools.apply_homography_to_points(
+                pts_dst, h_dst_2_src[im_dst_index])
+
+            e = time.time()
+
+            repeatability_results = repeatability_tools.compute_repeatability(pts_src, pts_dst_to_src)
+
+            rep_s.append(repeatability_results['rep_single_scale'])
+            rep_m.append(repeatability_results['rep_multi_scale'])
+            error_overlap_s.append(repeatability_results['error_overlap_single_scale'])
+            error_overlap_m.append(repeatability_results['error_overlap_multi_scale'])
+            possible_matches.append(repeatability_results['possible_matches'])
+
+            f = time.time()
+
+            ## time count
+            ba += b-a
+            cb += c-b
+            dc += d-c
+            ed += e-d
+            fe += f-e
+
+            
+            iterate.set_description("{}  {} / {} - {} Validation time: {:0.3f} {:0.3f} {:0.3f} {:0.3f} {:0.3f}"
+                .format(
+                    sequence_name, counter_sequences, len(dataloader.sequences), im_dst_index,
+                    ba, cb, dc, ed, fe
+            ))
+            disp_dict.update({'rep_s': '{:0.2f}'.format(repeatability_results['rep_single_scale'])})
+            iterate.set_postfix(disp_dict)
+
+            if tb_log is not None and sequence_index == 50:
+                im_src_RGB_norm_tensor = torch.tensor(im_src_RGB_norm, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+                im_dst_RGB_norm_tensor = torch.tensor(images_dst_RGB_norm[im_dst_index], dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+                src_image_grid = torchvision.utils.make_grid(im_src_RGB_norm_tensor)
+                dst_image_grid = torchvision.utils.make_grid(im_dst_RGB_norm_tensor)
+                tb_log.add_image('val_src_image', src_image_grid, cur_epoch)
+                tb_log.add_image('val_dst_image', dst_image_grid, cur_epoch)
+
+                src_outputs_score_maps_grid = torchvision.utils.make_grid(src_outputs_score_maps)
+                dst_outputs_score_maps_grid = torchvision.utils.make_grid(dst_outputs_score_maps)
+                tb_log.add_image('val_src_output_heatmap', src_outputs_score_maps_grid, cur_epoch)
+                tb_log.add_image('val_dst_output_heatmap', dst_outputs_score_maps_grid, cur_epoch)
+
+
+    return np.asarray(rep_s).mean(), np.asarray(rep_m).mean(), np.asarray(error_overlap_s).mean(),\
+           np.asarray(error_overlap_m).mean(), np.asarray(possible_matches).mean()
+
+
+def extract_detections(image_RGB_norm, model, device, cell_size=8, nms_size=15, num_points=25, border_size=15): 
+    height_RGB_norm, width_RGB_norm = image_RGB_norm.shape[0], image_RGB_norm.shape[1]
+    
+    image_even = dataset_utils.make_shape_even(image_RGB_norm)
+    height_even, width_even = image_even.shape[0], image_even.shape[1]
+    
+    image_pad = dataset_utils.mod_padding_symmetric(image_even, factor=64)
+    
+
+    image_pad_tensor = torch.tensor(image_pad, dtype=torch.float32)
+    image_pad_tensor = image_pad_tensor.permute(2, 0, 1)
+    image_pad_batch = image_pad_tensor.unsqueeze(0)
+
+    with torch.no_grad():
+        output_pad_batch = model(image_pad_batch.to(device))
+
+    score_map_pad_batch = F.relu(depth_to_space_without_softmax(output_pad_batch, cell_size))
+    score_map_pad_np = score_map_pad_batch[0, 0, :, :].cpu().detach().numpy()
+
+    # unpad images to get the original resolution
+    new_height, new_width = score_map_pad_np.shape[0], score_map_pad_np.shape[1]
+    h_start = new_height // 2 - height_even // 2
+    h_end = h_start + height_RGB_norm
+    w_start = new_width // 2 - width_even // 2
+    w_end = w_start + width_RGB_norm
+    score_map = score_map_pad_np[h_start:h_end, w_start:w_end]
+
+    score_map_batch = score_map_pad_batch[:,:,h_start:h_end, w_start:w_end]
+
+    score_map_remove_border = geometry_tools.remove_borders(score_map, borders=border_size)
+    score_map_nms = repeatability_tools.apply_nms(score_map_remove_border, nms_size)
+
+    pts = geometry_tools.get_point_coordinates(score_map_nms, num_points=num_points, order_coord='xysr')
+
+    pts_sorted = pts[(-1 * pts[:, 3]).argsort()]
+    pts_output = pts_sorted[:num_points]
+
+    return pts_output, score_map_batch
