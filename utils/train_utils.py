@@ -31,23 +31,25 @@ def build_optimizer(params, optim_cfg):
     return optimizer
 
 
-# def build_scheduler(optimizer, scheduler_cfg):
-#     if scheduler_cfg['name'] == 'plateau':
-#         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-#                                                             mode='min',
-#                                                             patience=scheduler_cfg['patience'],
-#                                                             factor=scheduler_cfg['factor'],
-#                                                             min_lr=scheduler_cfg['min_lr'])
-#     elif scheduler_cfg['name'] == 'sgdr':
-#         scheduler = WarmRestart(optimizer)
-#     elif scheduler_cfg['name'] == 'linear':
-#         scheduler = LinearDecay(optimizer,
-#                                 min_lr=scheduler_cfg['min_lr'],
-#                                 max_epoch=scheduler_cfg['max_epoch'],
-#                                 start_epoch=scheduler_cfg['start_epoch'])
-#     else:
-#         raise ValueError("Scheduler [%s] not recognized." % scheduler_cfg['name'])
-#     return scheduler
+def build_scheduler(optimizer, total_epochs, last_epoch, scheduler_cfg):
+    logging.info("=> Setting %s scheduler", scheduler_cfg['name'])
+    if scheduler_cfg['name'] == 'plateau':
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                            mode='min',
+                                                            patience=scheduler_cfg['patience'],
+                                                            factor=scheduler_cfg['factor'],
+                                                            min_lr=scheduler_cfg['min_lr'])
+    elif scheduler_cfg['name'] == 'sgdr':
+        scheduler = WarmRestart(optimizer)
+    elif scheduler_cfg['name'] == 'linear':
+        scheduler = LinearDecay(optimizer,
+                                min_lr=scheduler_cfg['min_lr'],
+                                max_epoch=total_epochs,
+                                start_epoch=scheduler_cfg['start_epoch'],
+                                last_epoch=last_epoch)
+    else:
+        raise ValueError("Scheduler [%s] not recognized." % scheduler_cfg['name'])
+    return scheduler
 
 class WarmRestart(optim.lr_scheduler.CosineAnnealingLR):
     def __init__(self, optimizer, T_max=30, T_mult=1, eta_min=0, last_epoch=-1):
@@ -62,39 +64,39 @@ class WarmRestart(optim.lr_scheduler.CosineAnnealingLR):
                 base_lr in self.base_lrs]
 
 
-# class LinearDecay(optim.lr_scheduler._LRScheduler):
-#     def __init__(self, optimizer, max_epoch, start_epoch=0, min_lr=0, last_epoch=-1):
-#         self.max_epoch = max_epoch
-#         self.start_epoch = start_epoch
-#         self.min_lr = min_lr
-#         super().__init__(optimizer, last_epoch)
+class LinearDecay(optim.lr_scheduler._LRScheduler):
+    def __init__(self, optimizer, max_epoch, start_epoch=0, min_lr=0, last_epoch=-1):
+        self.max_epoch = max_epoch
+        self.start_epoch = start_epoch
+        self.min_lr = min_lr
+        super().__init__(optimizer, last_epoch)
 
-#     def get_lr(self):
-#         if self.last_epoch < self.start_epoch:
-#             return self.base_lrs
-#         return [base_lr - ((base_lr - self.min_lr) / self.max_epoch) * (self.last_epoch - self.start_epoch) for
-#                 base_lr in self.base_lrs]
+    def get_lr(self):
+        if self.last_epoch < self.start_epoch:
+            return self.base_lrs
+        return [base_lr - ((base_lr - self.min_lr) / self.max_epoch) * (self.last_epoch - self.start_epoch) for
+                base_lr in self.base_lrs]
 
 
-def build_scheduler(optimizer, total_epochs, last_epoch, optim_cfg):
-    decay_epochs = [x * total_epochs for x in optim_cfg['decay_step_list']]
-    warmip_epoch = optim_cfg['warmup_epoch']
+# def build_scheduler(optimizer, total_epochs, last_epoch, optim_cfg):
+#     decay_epochs = [x * total_epochs for x in optim_cfg['decay_step_list']]
+#     warmip_epoch = optim_cfg['warmup_epoch']
 
-    def lr_lbmd(cur_epoch):
-        cur_decay = 1
-        if cur_epoch < warmip_epoch:
-            # cur_decay = (cur_epoch + 1) * (cur_epoch + 1) / (warmip_epoch * warmip_epoch)
-            cur_decay = (cur_epoch + 1) / warmip_epoch
+#     def lr_lbmd(cur_epoch):
+#         cur_decay = 1
+#         if cur_epoch < warmip_epoch:
+#             # cur_decay = (cur_epoch + 1) * (cur_epoch + 1) / (warmip_epoch * warmip_epoch)
+#             cur_decay = (cur_epoch + 1) / warmip_epoch
 
-        for decay_epoch in decay_epochs:
-            if cur_epoch >= decay_epoch:
-                cur_decay = cur_decay * optim_cfg['lr_decay']
+#         for decay_epoch in decay_epochs:
+#             if cur_epoch >= decay_epoch:
+#                 cur_decay = cur_decay * optim_cfg['lr_decay']
 
-        return max(cur_decay, optim_cfg['lr_clip'] / optim_cfg['lr'])
+#         return max(cur_decay, optim_cfg['lr_clip'] / optim_cfg['lr'])
 
-    lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lbmd, last_epoch=last_epoch)
+#     lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lbmd, last_epoch=last_epoch)
 
-    return lr_scheduler
+#     return lr_scheduler
 
 
 
@@ -341,8 +343,8 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
         images_src_batch, images_dst_batch, heatmap_src_patch, heatmap_dst_patch, h_src_2_dst_batch, h_dst_2_src_batch =\
         images_src_batch.to(device), images_dst_batch.to(device), heatmap_src_patch.to(device), heatmap_dst_patch.to(device), h_src_2_dst_batch.to(device), h_dst_2_src_batch.to(device)
 
-        src_outputs_score_batch, src_outputs_pos_batch = model(images_src_batch)
-        dst_outputs_score_batch, dst_outputs_pos_batch = model(images_dst_batch)
+        src_outputs_score_batch = model(images_src_batch)
+        dst_outputs_score_batch = model(images_dst_batch)
 
         src_score_maps = F.relu(depth_to_space_without_softmax(src_outputs_score_batch, cell_size))
         dst_score_maps = F.relu(depth_to_space_without_softmax(dst_outputs_score_batch, cell_size))
@@ -402,10 +404,10 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
             mask_src, mask_dst, nms_size, num_points
         )
         
-        rep_s_pos, rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos = compute_repeatability_with_direct_position(
-            src_score_maps, src_outputs_pos_batch, dst_score_maps, dst_outputs_pos_batch, homography,
-            num_points=num_points, order_coord='xysr'
-        )
+        # rep_s_pos, rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos = compute_repeatability_with_direct_position(
+        #     src_score_maps, src_outputs_pos_batch, dst_score_maps, dst_outputs_pos_batch, homography,
+        #     num_points=num_points, order_coord='xysr'
+        # )
 
         if tb_log is not None and idx == 0:
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
@@ -428,9 +430,9 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
     return np.asarray(rep_s).mean(), np.asarray(rep_m).mean(), np.asarray(error_overlap_s).mean(),\
            np.asarray(error_overlap_m).mean(), np.asarray(possible_matches).mean(),\
            np.asarray(rep_s_nms).mean(), np.asarray(rep_m_nms).mean(), np.asarray(error_overlap_s_nms).mean(),\
-           np.asarray(error_overlap_m_nms).mean(), np.asarray(possible_matches_nms).mean(),\
-           np.asarray(rep_s_pos).mean(), np.asarray(rep_m_pos).mean(), np.asarray(error_overlap_s_pos).mean(),\
-           np.asarray(error_overlap_m_pos).mean(), np.asarray(possible_matches_pos).mean()
+           np.asarray(error_overlap_m_nms).mean(), np.asarray(possible_matches_nms).mean() #,\
+        #    np.asarray(rep_s_pos).mean(), np.asarray(rep_m_pos).mean(), np.asarray(error_overlap_s_pos).mean(),\
+        #    np.asarray(error_overlap_m_pos).mean(), np.asarray(possible_matches_pos).mean()
 
 
 
@@ -508,7 +510,7 @@ def train_model(
             rep_loss = torch.tensor(0.0).float().to(device)
 
 
-        loss = src_anchor_loss + dst_anchor_loss + unsuper_loss
+        loss = src_anchor_loss + dst_anchor_loss # + unsuper_loss
 
         loss.backward()
         optimizer.step()

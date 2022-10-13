@@ -3,7 +3,7 @@ data:
   dataset_names: [COCO]
   COCO:
     images_path: data/COCO
-    labels_path: data/COCO_raw_ground_truth
+    labels_path: data/COCO_raw_ground_truth_more_points
     valid_val_split_file: datasets/coco_valid_val_image_names.txt
     valid_train_split_file: datasets/coco_valid_train_image_names.txt
     patch_size: 192
@@ -22,8 +22,8 @@ data:
   train_batch_size: 4
   val_batch_size: 1
 
-  train_num_workers: 12
-  val_num_workers: 12
+  train_num_workers: 16
+  val_num_workers: 16
 
 
 model:
@@ -66,5 +66,5 @@ model:
   cell_size: 8
   nms_size: 15
   
-ckpt_save_interval: 10
-max_ckpt_save_num: 30
+ckpt_save_interval: 5
+max_ckpt_save_num: 50

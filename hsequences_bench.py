@@ -74,9 +74,13 @@ def hsequences_metrics():
                 pts_dst = np.asarray(list(map(lambda x: [x[1], x[0], x[2], x[3]], pts_dst)))
 
             idx_src = repeatability_tools.check_common_points(pts_src, mask_src)
+            if idx_src.size == 0:
+                continue
             pts_src = pts_src[idx_src]
 
             idx_dst = repeatability_tools.check_common_points(pts_dst, mask_dst)
+            if idx_dst.size == 0:
+                continue
             pts_dst = pts_dst[idx_dst]
 
             if args.top_k_points:

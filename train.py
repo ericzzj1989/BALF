@@ -75,25 +75,30 @@ logger.info("The number of learnable parameters : {} ".format(params.data))
 logger.info("==================================================================== ")
 
 
+# scheduler = train_utils.build_scheduler(
+#     optimizer,
+#     total_epochs=total_epochs,
+#     last_epoch=last_epoch,
+#     optim_cfg=cfg['model']['optimizer'])
 scheduler = train_utils.build_scheduler(
     optimizer,
     total_epochs=total_epochs,
     last_epoch=last_epoch,
-    optim_cfg=cfg['model']['optimizer'])
+    scheduler_cfg=cfg['model']['scheduler'])
 
 
 if best_epoch == 0:
     with torch.no_grad():
         for val_loader in val_dataloaders:
-            repeatability,_,_,_,_,rep_s_nms,_,_,_,_,rep_s_pos,_,_,_,_ = train_utils.check_val_repeatability(
+            repeatability,_,_,_,_,rep_s_nms,_,_,_,_, = train_utils.check_val_repeatability(
                 val_loader['dataloader'], model=model, device=device, tb_log=None, cur_epoch=-1,
                 cell_size=cfg['model']['cell_size'], nms_size=cfg['model']['nms_size'], num_points=25
             )
             best_repeatability = rep_s_nms
             best_epoch = -1
             logger.info(('\n Epoch -1 : Repeatability Validation: {:.3f}.'.format(repeatability)))
-            logger.info(('\n Epoch -1 : KeyNet NMS Repeatability Validation: {:.3f}.'.format(rep_s_nms)))
-            logger.info(('\n Epoch -1 : Position Repeatability Validation: {:.3f}.\n\n'.format(rep_s_pos)))
+            logger.info(('\n Epoch -1 : KeyNet NMS Repeatability Validation: {:.3f}.\n\n'.format(rep_s_nms)))
+            # logger.info(('\n Epoch -1 : Position Repeatability Validation: {:.3f}.\n\n'.format(rep_s_pos)))
 
 
 logger.info("================ Start Training ================ ")
@@ -103,31 +108,30 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
             train_utils.train_model(
                 cur_epoch=cur_epoch, dataloader=train_loader['dataloader'], model=model,
                 optimizer=optimizer, device=device, tb_log=tensorboard_log, tbar=tbar, output_dir=output_dir,
-                cell_size=cfg['model']['cell_size'], anchor_loss=cfg['model']['anchor_loss'], usp_loss=usp_loss
+                cell_size=cfg['model']['cell_size'], anchor_loss=cfg['model']['anchor_loss'], usp_loss=None
             )
         with torch.no_grad():
             for val_loader in val_dataloaders:
                 rep_s, rep_m, error_overlap_s, error_overlap_m, possible_matches,\
-                rep_s_nms, rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms,\
-                rep_s_pos, rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos =\
+                rep_s_nms, rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms =\
                 train_utils.check_val_repeatability(
                     val_loader['dataloader'], model=model, device=device, tb_log=tensorboard_log, cur_epoch=cur_epoch,
                     cell_size=cfg['model']['cell_size'], nms_size=cfg['model']['nms_size'], num_points=25
                 )
                 tensorboard_log.add_scalar('repeatability_rep_s', rep_s, cur_epoch)
                 tensorboard_log.add_scalar('keynet_nms_repeatability_rep_s', rep_s_nms, cur_epoch)
-                tensorboard_log.add_scalar('position_repeatability_rep_s', rep_s_pos, cur_epoch)
+                # tensorboard_log.add_scalar('position_repeatability_rep_s', rep_s_pos, cur_epoch)
         logger.info(('Epoch {} (Validation) : Repeatability (rep_s): {:.3f}. '.format(cur_epoch, rep_s)))
         logger.info('\trep_m : {:.3f}, error_overlap_s : {:.3f}, error_overlap_m : {:.3f}, possible_matches : {:.3f}.'\
                     .format( rep_m, error_overlap_s, error_overlap_m, possible_matches))
 
         logger.info(('\tEpoch {} (Validation) : KeyNet NMS Repeatability (rep_s_nms): {:.3f}. '.format(cur_epoch, rep_s_nms)))
-        logger.info('\t\trep_m_nms : {:.3f}, error_overlap_s_nms : {:.3f}, error_overlap_m_nms : {:.3f}, possible_matches_nms : {:.3f}.'\
+        logger.info('\t\trep_m_nms : {:.3f}, error_overlap_s_nms : {:.3f}, error_overlap_m_nms : {:.3f}, possible_matches_nms : {:.3f}. \n\n'\
                     .format( rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms))
 
-        logger.info(('\tEpoch {} (Validation) : Position Repeatability (rep_s_nms): {:.3f}. '.format(cur_epoch, rep_s_pos)))
-        logger.info('\t\trep_m_nms : {:.3f}, error_overlap_s_nms : {:.3f}, error_overlap_m_nms : {:.3f}, possible_matches_nms : {:.3f}. \n\n'\
-                    .format( rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos))
+        # logger.info(('\tEpoch {} (Validation) : Position Repeatability (rep_s_nms): {:.3f}. '.format(cur_epoch, rep_s_pos)))
+        # logger.info('\t\trep_m_nms : {:.3f}, error_overlap_s_nms : {:.3f}, error_overlap_m_nms : {:.3f}, possible_matches_nms : {:.3f}. \n\n'\
+        #             .format( rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos))
 
         if best_repeatability < rep_s_nms:
             best_repeatability = rep_s_nms
@@ -153,3 +157,5 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
 
 logger.info("Best validation repeatability score : {} at epoch {}. ".format(best_repeatability, best_epoch))
 logger.info("================ Enhd Training ================ \n\n")
+
+# rep_s_pos, rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos =\

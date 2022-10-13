@@ -39,4 +39,4 @@ class GOPRO(COCO.COCO):
         self.get_sequence_names()
         self.images_paths = self.get_image_paths()
         print("Get {} images from {}".format(len(self.images_paths), self.dataset_cfg['images_path']))
-        return len(self.images_paths[:200]), self.images_paths[:200]
+        return len(self.images_paths), self.images_paths
