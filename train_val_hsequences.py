@@ -101,7 +101,7 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
             train_utils.train_model(
                 cur_epoch=cur_epoch, dataloader=train_loader['dataloader'], model=model,
                 optimizer=optimizer, device=device, tb_log=tensorboard_log, tbar=tbar, output_dir=output_dir,
-                cell_size=cfg['model']['cell_size'], anchor_loss=cfg['model']['anchor_loss'], usp_loss=None
+                cell_size=cfg['model']['cell_size'], anchor_loss=cfg['model']['anchor_loss'], usp_loss=None, repeatability_loss=None
             )
         with torch.no_grad():
             rep_s, rep_m, error_overlap_s, error_overlap_m, possible_matches = train_utils.check_val_hsequences_repeatability(

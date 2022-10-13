@@ -2,6 +2,7 @@ import datetime
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
+import matplotlib .pyplot as plt
 
 import torch
 import torch.nn.functional as F
@@ -28,10 +29,10 @@ def extract_features(image_RGB_norm, model, device, config, is_debugging=False):
     image_pad_batch = image_pad_tensor.unsqueeze(0)
 
 
-    output_pad_batch, outputs_pos_batch = model(image_pad_batch.to(device))
+    output_pad_batch = model(image_pad_batch.to(device))
 
 
-    score_map_pad_batch = F.relu(train_utils.depth_to_space_without_softmax(output_pad_batch, config['cell_size']))
+    score_map_pad_batch = train_utils.depth_to_space_with_softmax(output_pad_batch, config['cell_size'])
     score_map_pad_np = score_map_pad_batch[0, 0, :, :].cpu().detach().numpy()
 
     # unpad images to get the original resolution
@@ -44,17 +45,19 @@ def extract_features(image_RGB_norm, model, device, config, is_debugging=False):
 
 
     score_map_remove_border = geometry_tools.remove_borders(score_map, borders=config['border_size'])
-    score_map_nms = repeatability_tools.apply_nms(score_map_remove_border, config['nms_size'])
+    # score_map_nms = repeatability_tools.apply_nms(score_map_remove_border, config['nms_size'])
 
 
-    if is_debugging:
-        dataset_utils.debug_test_results(
-            image_RGB_norm, image_even, image_pad, score_map_pad_np,
-            score_map, score_map_remove_border, score_map_nms
-        )
+    # if is_debugging:
+    #     dataset_utils.debug_test_results(
+    #         image_RGB_norm, image_even, image_pad, score_map_pad_np,
+    #         score_map, score_map_remove_border, score_map_nms
+    #     )
 
 
-    pts = geometry_tools.get_point_coordinates(score_map_nms, num_points=config['num_points'], order_coord='xysr')
+    # pts = geometry_tools.get_point_coordinates(score_map_nms, num_points=config['num_points'], order_coord='xysr')
+
+    pts = repeatability_tools.get_points_direct_from_score_map(score_map_remove_border)
 
     pts_sorted = pts[(-1 * pts[:, 3]).argsort()]
     pts_output = pts_sorted[:config['num_points']]
@@ -93,16 +96,25 @@ def main():
             print('[ERROR]: File {0} not found!'.format(image_path))
             return
 
-        if 'blur' in image_path:
-            image_path = image_path.replace('/result', '')
+        print('read image path: ', image_path)        
 
         image_BGR = dataset_utils.read_bgr_image(str(image_path))
         image_RGB = dataset_utils.bgr_to_rgb(image_BGR)
         image_RGB_norm = image_RGB / 255.0
 
+        if args.is_debugging:
+            plt.figure()
+            plt.axis("off")
+            plt.imshow(image_RGB_norm)
+            plt.show()
+
         with torch.no_grad():
             image_pts = extract_features(image_RGB_norm, model, device, cfg)
 
+        if 'blur' in image_path:
+            image_path = image_path.replace('/result', '')
+
+        print('save image path: ', image_path)
 
         save_pts_dir = Path(detection_output_dir, image_path)
         common_utils.create_result_dir(str(save_pts_dir))

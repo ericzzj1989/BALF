@@ -2,6 +2,7 @@ import datetime
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
+import matplotlib .pyplot as plt
 
 from configs import config_hpatches
 from utils import common_utils
@@ -21,6 +22,10 @@ def hsequences_metrics():
 
     logger.initialize(args, output_dir)
 
+    if args.output_img:
+        visualization_dir = Path(output_dir, args.results_detection_dir.split('/')[1], 'visualization_detection')
+        common_utils.check_directory(visualization_dir)
+
     dataloader = HSequences.HSequences(args.data_dir, args.split, args.split_path)
     metrics_results = test_utils.create_metrics_results(args.split, args.top_k_points, args.overlap, args.pixel_threshold)
 
@@ -34,14 +39,16 @@ def hsequences_metrics():
         counter_sequences += 1
 
         sequence_name = sequence_data['sequence_name']
-        im_src_RGB_norm = sequence_data['im_src_RGB_norm']
-        images_dst_RGB_norm = sequence_data['images_dst_RGB_norm']
+        im_src_BGR = sequence_data['im_src_BGR']
+        images_dst_BGR = sequence_data['images_dst_BGR']
         h_src_2_dst = sequence_data['h_src_2_dst']
         h_dst_2_src = sequence_data['h_dst_2_src']
+
+        print('\n Computing '+sequence_name+' sequence {} / {} \n'.format(counter_sequences, len(dataloader.sequences)))
         
-        for im_dst_index in range(len(images_dst_RGB_norm)):
+        for im_dst_index in tqdm(range(len(images_dst_BGR))):
             mask_src, mask_dst = geometry_tools.create_common_region_masks(
-                h_dst_2_src[im_dst_index], im_src_RGB_norm.shape, images_dst_RGB_norm[im_dst_index].shape
+                h_dst_2_src[im_dst_index], im_src_BGR.shape, images_dst_BGR[im_dst_index].shape
             )
 
             pts_src_file = Path(args.results_detection_dir, '{}/1.ppm.kpt.npz'.format(sequence_data['sequence_name']))
@@ -58,6 +65,9 @@ def hsequences_metrics():
 
             pts_src = np.load(pts_src_file, allow_pickle=True)['kpts']
             pts_dst = np.load(pts_dst_file, allow_pickle=True)['kpts']
+
+            src_pts_raw_num = len(pts_src)
+            dst_pts_raw_num = len(pts_dst)
 
             if args.order_coord == 'xysr':
                 pts_src = np.asarray(list(map(lambda x: [x[1], x[0], x[2], x[3]], pts_src)))
@@ -95,6 +105,21 @@ def hsequences_metrics():
             repeatability_results = repeatability_tools.compute_repeatability(points_src, points_dst, overlap_err=1-args.overlap,
                                                                     dist_match_thresh=args.pixel_threshold)
 
+            if args.output_img:
+                detection_im_src_BGR = test_utils.draw_keypoints(im_src_BGR, pts_src[:,:2], radius=5)
+                detection_im_dst_BGR = test_utils.draw_keypoints(images_dst_BGR[im_dst_index], pts_dst[:,:2], radius=5)
+
+                test_utils.plot_imgs(
+                    [detection_im_src_BGR.astype(np.uint8), detection_im_dst_BGR.astype(np.uint8)],
+                    titles=['src pts: {}/{}'.format(len(pts_src),src_pts_raw_num), 'dst pts: {}/{}'.format(len(pts_dst),dst_pts_raw_num)], dpi=150)
+                plt.suptitle('{} {} / {} - {}, rep_s {:.2f}, min_features {:d}, matches {:d}'.format(
+                    sequence_name, counter_sequences, len(dataloader.sequences), im_dst_index,
+                    repeatability_results['rep_single_scale'], repeatability_results['total_num_points'], repeatability_results['possible_matches']))
+
+                plt.tight_layout()
+                vis_file = str(visualization_dir)+'/'+sequence_name+'_'+str(im_dst_index+2)+'.png'
+                plt.savefig(vis_file, dpi=150, bbox_inches='tight')
+
 
             metrics_results['rep_single_scale'].append(
                 repeatability_results['rep_single_scale'])
@@ -114,16 +139,17 @@ def hsequences_metrics():
                 repeatability_results['possible_matches'])
 
             ## logging
-            iterate.set_description("{}  {} / {} - {} rep_s {:.2f} , rep_m {:.2f}, p_s {:d} , p_m {:d}, eps_s {:.2f}, eps_m {:.2f}, #_features {:d}, #_matches {:d}"
+            iterate.set_description("{}  {} / {} - {} rep_s {:.2f} , rep_m {:.2f}, p_s {:d} , p_m {:d}, eps_s {:.2f}, eps_m {:.2f}, min_features {:d}, matches {:d}, avg rep_s: {:0.4f}"
                 .format(
                     sequence_name, counter_sequences, len(dataloader.sequences), im_dst_index,
                     repeatability_results['rep_single_scale'], repeatability_results['rep_multi_scale'], repeatability_results['num_points_single_scale'], 
                     repeatability_results['num_points_multi_scale'], repeatability_results['error_overlap_single_scale'],
-                    repeatability_results['error_overlap_multi_scale'], repeatability_results['total_num_points'], repeatability_results['possible_matches']
+                    repeatability_results['error_overlap_multi_scale'], repeatability_results['total_num_points'], repeatability_results['possible_matches'],
+                    np.array(metrics_results['rep_single_scale']).mean()
             ))
-            logger.info("{}  1 - {} rep_s {:.2f} , rep_m {:.2f}, p_s {:.2f} , p_m {:.2f}, eps_s {:.2f}, eps_m {:.2f}, total_# {:.2f}, matches {:.2f}"
+            logger.info("{} {} / {} - {} rep_s {:.2f} , rep_m {:.2f}, p_s {:d} , p_m {:d}, eps_s {:.2f}, eps_m {:.2f}, min_features {:d}, matches {:d}"
                 .format(
-                    sequence_name, im_dst_index,
+                    sequence_name, counter_sequences, len(dataloader.sequences), im_dst_index,
                     repeatability_results['rep_single_scale'], repeatability_results['rep_multi_scale'], repeatability_results['num_points_single_scale'], 
                     repeatability_results['num_points_multi_scale'], repeatability_results['error_overlap_single_scale'],
                     repeatability_results['error_overlap_multi_scale'], repeatability_results['total_num_points'], repeatability_results['possible_matches']
@@ -138,6 +164,19 @@ def hsequences_metrics():
     num_matches = np.array(metrics_results['num_matches']).mean()
 
     print('\n## Overlap @{0}:\n \
+           ## top_k @{1}:\n \
+           ## pixel_threshold @{2}:\n \
+           #### Rep. Multi: {3:.4f}\n \
+           #### Rep. Single: {4:.4f}\n \
+           #### Overlap Multi: {5:.4f}\n \
+           #### Overlap Single: {6:.4f}\n \
+           #### Num Feats: {7:.4f}\n \
+           #### Num Matches: {8:.4f}'.format(
+           args.overlap, args.top_k_points, args.pixel_threshold,
+           rep_multi, rep_single, error_overlap_s, error_overlap_m, num_features, num_matches
+    ))
+
+    logger.info('\n## Overlap @{0}:\n \
            ## top_k @{1}:\n \
            ## pixel_threshold @{2}:\n \
            #### Rep. Multi: {3:.4f}\n \

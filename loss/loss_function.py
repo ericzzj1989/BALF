@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torchgeometry.core import warp_perspective
 
 from utils import train_utils, common_utils
+from benchmark_test import geometry_tools, repeatability_tools
 
 
 def anchor_loss(device, input, target, loss_type='softmax'):
@@ -241,3 +242,48 @@ class ScoreLoss(object):
         uni_l2 = torch.mean(torch.pow(position - (idx / p), 2))
 
         return uni_l2
+
+
+def repeatability_loss(src_scores, dst_scores, homography, mask_src, mask_dst, nms_size, num_points):
+    mask_src, mask_dst = mask_src[0].to(src_scores.device), mask_dst[0].to(src_scores.device)
+    src_score = repeatability_tools.apply_nms_fast_tesnor(src_scores[0, :, :], nms_size)
+    dst_score = repeatability_tools.apply_nms_fast_tesnor(dst_scores[0, :, :], nms_size)
+
+    src_score = src_score * mask_src
+    dst_score = dst_score * mask_dst
+
+    src_pts = geometry_tools.get_point_coordinates_tensor(src_score, num_points=num_points, order_coord='xysr')
+    dst_pts = geometry_tools.get_point_coordinates_tensor(dst_score, num_points=num_points, order_coord='xysr')
+
+    src_pts, dst_pts = src_pts.to(src_scores.device), dst_pts.to(src_scores.device)
+    dst_to_src_pts = geometry_tools.apply_homography_to_points_tensor(dst_pts.to(src_scores.device), homography)
+    dst_to_src_pts = dst_to_src_pts.to(src_scores.device)
+    distances = 0
+    for idx_ref in range(src_pts.shape[0]):
+        for idx_dst in range(dst_to_src_pts.shape[0]):
+            distance = (((src_pts[idx_ref,0] - dst_to_src_pts[idx_dst,0]) ** 2) + ((src_pts[idx_ref,1] - dst_to_src_pts[idx_dst,1]) ** 2)) ** 0.5
+            distances += distance
+            
+
+    dis_loss = distances / (src_pts.shape[0]*dst_to_src_pts.shape[0])
+    print(dis_loss)
+
+    return dis_loss
+
+def repeatability_loss_batch(src_outputs_score_batch, dst_outputs_score_batch, h_dst_2_src_batch, shape_src, shape_dst, cell_size, nms_size, num_points):
+    batch_size = src_outputs_score_batch.shape[0]
+    loss = 0
+
+    src_score_maps_batch = F.relu(train_utils.depth_to_space_without_softmax(src_outputs_score_batch, cell_size))
+    dst_score_maps_batch = F.relu(train_utils.depth_to_space_without_softmax(dst_outputs_score_batch, cell_size))
+
+    mask_src_batch, mask_dst_batch = geometry_tools.create_common_region_masks_tensor(h_dst_2_src_batch, shape_src, shape_dst)
+
+    for i in range(batch_size):
+        loss_batch = repeatability_loss(
+            src_score_maps_batch[i], dst_score_maps_batch[i], h_dst_2_src_batch[i],
+            mask_src_batch[i], mask_dst_batch[i],
+            nms_size, num_points)
+        loss += loss_batch
+
+    return loss / batch_size

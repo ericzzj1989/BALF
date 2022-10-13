@@ -136,7 +136,7 @@ class SpaceToDepth(nn.Module):
         output = output.permute(0, 3, 1, 2)
         return output
 
-def depth_to_space(score_maps, cell_size):
+def depth_to_space_with_softmax(score_maps, cell_size):
     is_batch = False
     if len(score_maps.shape) == 4:
         is_batch = True
@@ -443,7 +443,10 @@ def network_outputs_to_score_maps_tensor_batch(network_outputs, cell_size, nms_s
     return torch.tensor(score_maps_nms_batch[:, np.newaxis, ...], dtype=torch.float32)
 
 
-def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, output_dir=None, cell_size=8, add_dustbin=True, anchor_loss='softmax', usp_loss=None):
+def train_model(
+    cur_epoch, dataloader, model, optimizer, device, tb_log,
+    tbar, output_dir=None, cell_size=8, add_dustbin=True,
+    anchor_loss='softmax', usp_loss=None, repeatability_loss=None):
     total_loss_avg = []
     disp_dict = {}
 
@@ -495,6 +498,15 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
         else:
             unsuper_loss = torch.tensor(0.0).float().to(device)
 
+        if repeatability_loss is not None:
+            shape_src = images_src_batch.shape[2:]
+            shape_dst = images_dst_batch.shape[2:]
+            rep_loss = repeatability_loss['weight'] * loss_function.repeatability_loss_batch(
+                src_outputs_score_batch, dst_outputs_score_batch, h_dst_2_src_batch, shape_src, shape_dst, cell_size, 15, 25
+            )
+        else:
+            rep_loss = torch.tensor(0.0).float().to(device)
+
 
         loss = src_anchor_loss + dst_anchor_loss + unsuper_loss
 
@@ -516,6 +528,7 @@ def train_model(cur_epoch, dataloader, model, optimizer, device, tb_log, tbar, o
             # tb_log.add_scalar('unsuper_loss', unsuper_loss, cur_epoch)
             # tb_log.add_scalar('usp_loss', ussuper_loss_item[0], cur_epoch)
             # tb_log.add_scalar('uni_loss', ussuper_loss_item[1], cur_epoch)
+            # tb_log.add_scalar('rep_loss', rep_loss, cur_epoch)
 
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
             dst_image_grid = torchvision.utils.make_grid(images_dst_batch)

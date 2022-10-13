@@ -1,5 +1,6 @@
 import argparse
 from utils import common_utils
+import numpy as np
 
 
 def parse_config():
@@ -13,6 +14,16 @@ def parse_config():
                         help='The path to the checkpoint file to load the detector weights.', required=True)
     parser.add_argument('--hsequences_list_file', type=str, 
                         help='File containing the image paths for extracting features.', required=True)
+
+    parser.add_argument('--is_debugging', type=bool, default=False,
+                        help='Set variable to True if you desire to check read image.')
+
+    parser.add_argument('--scale_factor_levels', type=float, default=np.sqrt(2),
+                        help='The scale factor between the pyramid levels.')
+    parser.add_argument('--pyramid_levels', type=int, default=5,
+                        help='The number of downsample levels in the pyramid.')
+    parser.add_argument('--upsampled_levels', type=int, default=1,
+                        help='The number of upsample levels in the pyramid.')
 
     args = parser.parse_args()
 
@@ -46,6 +57,9 @@ def parse_eval_config():
                         help='Order to apply homography to points. Use True for dst to src, False otherwise.')
     parser.add_argument('--order_coord', type=str, default='xysr',
                         help='The coordinate order that follows the extracted points. Use either xysr or yxsr.')
+
+    parser.add_argument('--output_img', type=bool, default=False,
+                        help='Output the detection in the image.')
 
     args = parser.parse_args()
 
