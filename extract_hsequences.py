@@ -3,6 +3,7 @@ import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 import matplotlib .pyplot as plt
+import time
 
 import torch
 import torch.nn.functional as F
@@ -15,7 +16,7 @@ from datasets import dataset_utils
 from benchmark_test import geometry_tools, repeatability_tools
 
 
-def extract_features(image_RGB_norm, model, device, config, is_debugging=False):
+def extract_features(image_RGB_norm, model, device, args, is_debugging=False):
     height_RGB_norm, width_RGB_norm = image_RGB_norm.shape[0], image_RGB_norm.shape[1]
     
     image_even = dataset_utils.make_shape_even(image_RGB_norm)
@@ -28,11 +29,14 @@ def extract_features(image_RGB_norm, model, device, config, is_debugging=False):
     image_pad_tensor = image_pad_tensor.permute(2, 0, 1)
     image_pad_batch = image_pad_tensor.unsqueeze(0)
 
-
+    import time
+    t0 = time.time()
     output_pad_batch = model(image_pad_batch.to(device))
+    t1 = time.time()
+    extract_time = t1-t0
 
 
-    score_map_pad_batch = train_utils.depth_to_space_with_softmax(output_pad_batch, config['cell_size'])
+    score_map_pad_batch = train_utils.depth_to_space_with_softmax(output_pad_batch, args.cell_size)
     score_map_pad_np = score_map_pad_batch[0, 0, :, :].cpu().detach().numpy()
 
     # unpad images to get the original resolution
@@ -44,25 +48,30 @@ def extract_features(image_RGB_norm, model, device, config, is_debugging=False):
     score_map = score_map_pad_np[h_start:h_end, w_start:w_end]
 
 
-    score_map_remove_border = geometry_tools.remove_borders(score_map, borders=config['border_size'])
-    # score_map_nms = repeatability_tools.apply_nms(score_map_remove_border, config['nms_size'])
+    score_map_remove_border = geometry_tools.remove_borders(score_map, borders=args.border_size)
 
 
+
+    # score_map_nms = repeatability_tools.apply_nms(score_map_remove_border, args.nms_size)
     # if is_debugging:
     #     dataset_utils.debug_test_results(
     #         image_RGB_norm, image_even, image_pad, score_map_pad_np,
     #         score_map, score_map_remove_border, score_map_nms
     #     )
-
-
     # pts = geometry_tools.get_point_coordinates(score_map_nms, num_points=config['num_points'], order_coord='xysr')
 
-    pts = repeatability_tools.get_points_direct_from_score_map(score_map_remove_border)
+    pts = repeatability_tools.get_points_direct_from_score_map(
+        heatmap=score_map_remove_border, conf_thresh=args.heatmap_confidence_threshold,
+        nms_size=args.nms_size, subpixel=args.sub_pixel, patch_size=args.patch_size, order_coord=args.order_coord
+    )
+
+    if pts.size == 0:
+        return None, None
 
     pts_sorted = pts[(-1 * pts[:, 3]).argsort()]
-    pts_output = pts_sorted[:config['num_points']]
+    pts_output = pts_sorted[:args.num_points]
 
-    return pts_output # pts_output.shape: N*4
+    return pts_output, extract_time # pts_output.shape: N*4
 
 
 
@@ -109,7 +118,11 @@ def main():
             plt.show()
 
         with torch.no_grad():
-            image_pts = extract_features(image_RGB_norm, model, device, cfg)
+            image_pts, extract_time = extract_features(image_RGB_norm, model, device, args)
+
+        if image_pts is None and extract_time is None:
+            logger.info('No kpts in {}'.format(path_to_image.rstrip('\n')))
+            continue
 
         if 'blur' in image_path:
             image_path = image_path.replace('/result', '')
@@ -125,7 +138,7 @@ def main():
 
         np.savez(kpt_file, kpts=image_pts)
 
-        logger.info('{} kpts saved in {}'.format(image_pts.shape, kpt_file))
+        logger.info('{} kpts saved in {}, extract_time {:.5f} in image size {}'.format(image_pts.shape, kpt_file, extract_time, image_BGR.shape[:2]))
 
 
 if __name__ == '__main__':

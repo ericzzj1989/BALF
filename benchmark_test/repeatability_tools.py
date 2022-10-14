@@ -77,7 +77,16 @@ def apply_nms_fast(score_map, dist_thresh):
 
     return output_score_map
 
-def get_points_direct_from_score_map(heatmap, conf_thresh=0.015, nms_dist=15, scale_value=1., order_coord='xysr'):
+
+
+
+
+
+def get_points_direct_from_score_map(
+    heatmap, conf_thresh=0.015, nms_size=15,
+    subpixel=True, patch_size=5, scale_value=1., order_coord='xysr'
+):
+
     H, W = heatmap.shape[0], heatmap.shape[1]
     ys, xs = np.where(heatmap >= conf_thresh)  # Confidence threshold.
     if len(xs) == 0:
@@ -86,9 +95,12 @@ def get_points_direct_from_score_map(heatmap, conf_thresh=0.015, nms_dist=15, sc
     pts[0, :] = xs
     pts[1, :] = ys
     pts[2, :] = heatmap[ys, xs]
-    pts, _ = nms_fast(pts, H, W, dist_thresh=nms_dist)  # Apply NMS.
+    pts, _ = nms_fast(pts, H, W, dist_thresh=nms_size)  # Apply NMS.
     inds = np.argsort(pts[2, :])
     pts = pts[:, inds[::-1]]  # Sort by confidence.
+
+    if subpixel:
+        pts = soft_argmax_points(pts, heatmap, patch_size=patch_size)
 
     new_indexes = []
     for idx in range(pts.shape[1]):
@@ -144,7 +156,56 @@ def nms_fast(in_corners, H, W, dist_thresh):
     out_inds = inds1[inds_keep[inds2]]
     return out, out_inds
 
-def apply_nms_fast_tesnor(score_map, dist_thresh):
+def soft_argmax_points(pts, heatmap, patch_size=5):
+    pts = pts.transpose().copy()
+    patches = extract_patch_from_points(heatmap, pts, patch_size=patch_size)
+    patches = np.stack(patches)
+    patches_torch = torch.tensor(patches, dtype=torch.float32).unsqueeze(0)
+    patches_torch = norm_patches(patches_torch)
+    patches_torch = do_log(patches_torch)
+    dxdy = soft_argmax_2d(patches_torch, normalized_coordinates=False)
+    points = pts
+    points[:,:2] = points[:,:2] + dxdy.numpy().squeeze() - patch_size//2
+    patches = patches_torch.numpy().squeeze()
+    pts_subpixel = points.transpose().copy()
+    return pts_subpixel.copy()
+
+def extract_patch_from_points(heatmap, points, patch_size=5):
+    if type(heatmap) is torch.Tensor:
+        heatmap = heatmap.detach().cpu().numpy()
+    heatmap = heatmap.squeeze()  # [H, W]
+    pad_size = int(patch_size/2)
+    heatmap = np.pad(heatmap, pad_size, 'constant')
+    patches = []
+    ext = lambda img, pnt, wid: img[pnt[1]:pnt[1]+wid, pnt[0]:pnt[0]+wid]
+    print("heatmap: ", heatmap.shape)
+    for i in range(points.shape[0]):
+        patch = ext(heatmap, points[i,:].astype(int), patch_size)
+        patches.append(patch)
+
+    return patches
+
+def soft_argmax_2d(patches, normalized_coordinates=True):
+    import torchgeometry as tgm
+    m = tgm.contrib.SpatialSoftArgmax2d(normalized_coordinates=normalized_coordinates)
+    coords = m(patches)  # 1x4x2
+    return coords
+
+def norm_patches(patches):
+    patch_size = patches.shape[-1]
+    patches = patches.view(-1, 1, patch_size*patch_size)
+    d = torch.sum(patches, dim=-1).unsqueeze(-1) + 1e-6
+    patches = patches/d
+    patches = patches.view(-1, 1, patch_size, patch_size)
+    return patches
+
+def do_log(patches):
+    patches[patches<0] = 1e-6
+    patches_log = torch.log(patches)
+    return patches_log
+
+
+'''def apply_nms_fast_tesnor(score_map, dist_thresh):
     H, W = score_map.shape
     in_corners = torch.zeros((3, H*W))  # Populate point data sized 3xN.
     for idx in range(H*W):
@@ -199,7 +260,9 @@ def apply_nms_fast_tesnor(score_map, dist_thresh):
             continue
         output_score_map[pts_nms[1, idx].type(torch.long), pts_nms[0, idx].type(torch.long)] = pts_nms[2, idx]
 
-    return output_score_map
+    return output_score_map'''
+
+
 
 
 def compute_repeatability(src_indexes, dst_indexes, overlap_err=0.4, eps=1e-6, dist_match_thresh=3, radious_size=30.):

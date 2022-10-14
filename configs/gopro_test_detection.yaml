@@ -9,7 +9,3 @@ model:
     input_proj_factor: 2
     channels_reduction: 4
     out_channels: 65
-nms_size: 15
-cell_size: 8
-border_size: 15
-num_points: 10000

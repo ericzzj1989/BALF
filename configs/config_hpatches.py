@@ -15,6 +15,49 @@ def parse_config():
     parser.add_argument('--hsequences_list_file', type=str, 
                         help='File containing the image paths for extracting features.', required=True)
 
+    parser.add_argument('--cell_size', type=int, default=8,
+                        help='Pixel shuffle.')
+    parser.add_argument('--nms_size', type=int, default=15,
+                        help='The NMS size for computing the validation repeatability.')
+    parser.add_argument('--num_points', type=int, default=1500,
+                        help='The number of desired features to extract.')
+    parser.add_argument('--border_size', type=int, default=15,
+                        help='The number of pixels to remove from the borders to compute the repeatability.')
+    parser.add_argument('--order_coord', type=str, default='xysr',
+                        help='The coordinate order that follows the extracted points. Use yxsr or xysr.')
+    parser.add_argument('--heatmap_confidence_threshold', type=float, default=0.015,
+                        help='Keypoints confidence threshold.')
+    parser.add_argument('--sub_pixel', type=bool, default=True,
+                        help='Extract subpixel detection')
+    parser.add_argument('--patch_size', type=int, default=5,
+                        help='subpixel patch size.')
+    parser.add_argument('--is_debugging', type=bool, default=False,
+                        help='Set variable to True if you desire to check read image.')
+
+    args = parser.parse_args()
+
+    cfg = common_utils.get_cfg_from_yaml_file(args.test_cfg_file)
+
+    return args, cfg
+
+def parse_multiscale_config():
+    parser = argparse.ArgumentParser(description='hsequences detection extraction')
+
+    parser.add_argument('--exper_name', type=str, required=True)
+    parser.add_argument('--test_cfg_file', type=str, default='configs/gopro_test_detection.yaml')
+    parser.add_argument('--results_detection_dir', type=str, default='results_hsequences_detection',
+                        help='Path for saving extraction results')
+    parser.add_argument('--ckpt_file', type=str, 
+                        help='The path to the checkpoint file to load the detector weights.', required=True)
+    parser.add_argument('--hsequences_list_file', type=str, 
+                        help='File containing the image paths for extracting features.', required=True)
+
+    parser.add_argument('--nms_size', type=int, default=15,
+                        help='The NMS size for computing the validation repeatability.')
+    parser.add_argument('--num_points', type=int, default=1500,
+                        help='The number of desired features to extract.')
+    parser.add_argument('--border_size', type=int, default=15,
+                        help='The number of pixels to remove from the borders to compute the repeatability.')
     parser.add_argument('--is_debugging', type=bool, default=False,
                         help='Set variable to True if you desire to check read image.')
 

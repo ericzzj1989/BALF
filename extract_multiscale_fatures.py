@@ -112,7 +112,7 @@ def extract_features(image, model, device, levels, point_level, config, args, is
 
 
 def main():
-    args, cfg = config_hpatches.parse_config()
+    args, cfg = config_hpatches.parse_multiscale_config()
 
     start_time = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     output_dir = Path(args.results_detection_dir, args.exper_name, start_time)

@@ -17,13 +17,13 @@ def hsequences_metrics():
     print('Evaluate {} sequences'.format(args.split))
     common_utils.check_directory(args.results_bench_dir)
     start_time = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    output_dir = Path(args.results_bench_dir, start_time)
+    output_dir = Path(args.results_bench_dir, args.results_detection_dir.split('/')[1], start_time, 'split-{}_overlap{}_top-k{}_pixel-threshold{}'.format(args.split, args.overlap, args.top_k_points, args.pixel_threshold))
     common_utils.check_directory(output_dir)
 
     logger.initialize(args, output_dir)
 
     if args.output_img:
-        visualization_dir = Path(output_dir, args.results_detection_dir.split('/')[1], 'visualization_detection')
+        visualization_dir = Path(output_dir, 'visualization_detection')
         common_utils.check_directory(visualization_dir)
 
     dataloader = HSequences.HSequences(args.data_dir, args.split, args.split_path)
@@ -55,12 +55,12 @@ def hsequences_metrics():
             pts_dst_file =Path(args.results_detection_dir, '{}/{}.ppm.kpt.npz'.format(sequence_data['sequence_name'], im_dst_index+2))
 
             if not pts_src_file.exists():
-                print("Could not find the file: " + pts_src_file)
-                return False
+                logger.info("Could not find the file: " + str(pts_src_file))
+                continue
 
             if not pts_dst_file.exists():
-                print("Could not find the file: " + pts_dst_file)
-                return False
+                logger.info("Could not find the file: " + str(pts_dst_file))
+                continue
 
 
             pts_src = np.load(pts_src_file, allow_pickle=True)['kpts']
@@ -151,9 +151,9 @@ def hsequences_metrics():
                     repeatability_results['error_overlap_multi_scale'], repeatability_results['total_num_points'], repeatability_results['possible_matches'],
                     np.array(metrics_results['rep_single_scale']).mean()
             ))
-            logger.info("{} {} / {} - {} rep_s {:.2f} , rep_m {:.2f}, p_s {:d} , p_m {:d}, eps_s {:.2f}, eps_m {:.2f}, min_features {:d}, matches {:d}"
+            logger.info("{} {} / {} - {} src_num: {:d}/{:d} dst_num: {:d}/{:d} rep_s {:.2f} , rep_m {:.2f}, p_s {:d} , p_m {:d}, eps_s {:.2f}, eps_m {:.2f}, min_features {:d}, matches {:d}"
                 .format(
-                    sequence_name, counter_sequences, len(dataloader.sequences), im_dst_index,
+                    sequence_name, counter_sequences, len(dataloader.sequences), im_dst_index, len(pts_src),src_pts_raw_num, len(pts_dst),dst_pts_raw_num,
                     repeatability_results['rep_single_scale'], repeatability_results['rep_multi_scale'], repeatability_results['num_points_single_scale'], 
                     repeatability_results['num_points_multi_scale'], repeatability_results['error_overlap_single_scale'],
                     repeatability_results['error_overlap_multi_scale'], repeatability_results['total_num_points'], repeatability_results['possible_matches']
@@ -193,9 +193,7 @@ def hsequences_metrics():
            rep_multi, rep_single, error_overlap_s, error_overlap_m, num_features, num_matches
     ))
 
-    save_metrics_dir = Path(output_dir, args.results_detection_dir.split('/')[1], 'overlap{}_top-k{}_pixel-threshold{}'.format(args.overlap, args.top_k_points, args.pixel_threshold))
-    common_utils.check_directory(save_metrics_dir)
-    metrics_file = Path(save_metrics_dir, 'metrics')
+    metrics_file = Path(output_dir, 'metrics')
     np.savez(metrics_file, rep_single=rep_single, rep_multi=rep_multi, error_overlap_s=error_overlap_s, error_overlap_m=error_overlap_m, num_features=num_features)
     # savez_compressed
 
