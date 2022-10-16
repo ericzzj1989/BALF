@@ -150,16 +150,15 @@ def create_common_region_masks_tensor(h_dst_2_src, shape_src, shape_dst):
     return mask_src, mask_dst
 
 def remove_borders_tensor(image, borders): 
-    ## Input : [B, H, W, C] or [H, W, C] or [H, W]
+    ## Input : [B, C, H, W] or [C, H, W] or [H, W]
 
     shape = image.shape
     new_im = torch.zeros_like(image)
-    # if len(shape) == 4:
-    #     shape = [shape[1], shape[2], shape[3]]
-    #     new_im[:, borders:shape[0]-borders, borders:shape[1]-borders, :] = image[:, borders:shape[0]-borders, borders:shape[1]-borders, :]
-    # elif len(shape) == 3:
-    if len(shape) == 3:
-        new_im[borders:shape[0] - borders, borders:shape[1] - borders, :] = image[borders:shape[0] - borders, borders:shape[1] - borders, :]
+    if len(shape) == 4:
+        # shape = [shape[1], shape[2], shape[3]]
+        new_im[:, :, borders:shape[2]-borders, borders:shape[3]-borders] = image[:, :, borders:shape[2]-borders, borders:shape[3]-borders]
+    elif len(shape) == 3:
+        new_im[:, borders:shape[1] - borders, borders:shape[2] - borders] = image[:, borders:shape[1] - borders, borders:shape[2] - borders]
     else:
         new_im[borders:shape[0] - borders, borders:shape[1] - borders] = image[borders:shape[0] - borders,  borders:shape[1] - borders]
     return new_im

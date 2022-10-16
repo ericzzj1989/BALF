@@ -44,7 +44,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = get_model.load_model(cfg['model'])
 model.to(device)
 
-usp_loss = loss_function.ScoreLoss(device, cfg['model']['unsuper_loss'])
+# usp_loss = loss_function.ScoreLoss(device, cfg['model']['unsuper_loss'])
+usp_loss = None
 
 optimizer = train_utils.build_optimizer(filter(lambda p: p.requires_grad, model.parameters()), cfg['model']['optimizer'])
 
@@ -87,18 +88,18 @@ scheduler = train_utils.build_scheduler(
     scheduler_cfg=cfg['model']['scheduler'])
 
 
-if best_epoch == 0:
-    with torch.no_grad():
-        for val_loader in val_dataloaders:
-            repeatability,_,_,_,_,rep_s_nms,_,_,_,_, = train_utils.check_val_repeatability(
-                val_loader['dataloader'], model=model, device=device, tb_log=None, cur_epoch=-1,
-                cell_size=cfg['model']['cell_size'], nms_size=cfg['model']['nms_size'], num_points=25
-            )
-            best_repeatability = rep_s_nms
-            best_epoch = -1
-            logger.info(('\n Epoch -1 : Repeatability Validation: {:.3f}.'.format(repeatability)))
-            logger.info(('\n Epoch -1 : KeyNet NMS Repeatability Validation: {:.3f}.\n\n'.format(rep_s_nms)))
-            # logger.info(('\n Epoch -1 : Position Repeatability Validation: {:.3f}.\n\n'.format(rep_s_pos)))
+# if best_epoch == 0:
+#     with torch.no_grad():
+#         for val_loader in val_dataloaders:
+#             repeatability,_,_,_,_,rep_s_nms,_,_,_,_, = train_utils.check_val_repeatability(
+#                 val_loader['dataloader'], model=model, device=device, tb_log=None, cur_epoch=-1,
+#                 cell_size=cfg['model']['cell_size'], nms_size=cfg['model']['nms_size'], num_points=25
+#             )
+#             best_repeatability = rep_s_nms
+#             best_epoch = -1
+#             logger.info(('\n Epoch -1 : Repeatability Validation: {:.3f}.'.format(repeatability)))
+#             logger.info(('\n Epoch -1 : KeyNet NMS Repeatability Validation: {:.3f}.\n\n'.format(rep_s_nms)))
+#             # logger.info(('\n Epoch -1 : Position Repeatability Validation: {:.3f}.\n\n'.format(rep_s_pos)))
 
 
 logger.info("================ Start Training ================ ")
@@ -106,9 +107,9 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
     for cur_epoch in tbar:
         for train_loader in train_dataloaders:
             train_utils.train_model(
-                cur_epoch=cur_epoch, dataloader=train_loader['dataloader'], model=model,
-                optimizer=optimizer, device=device, tb_log=tensorboard_log, tbar=tbar, output_dir=output_dir,
-                cell_size=cfg['model']['cell_size'], anchor_loss=cfg['model']['anchor_loss'], usp_loss=None
+                cur_epoch=cur_epoch, dataloader=train_loader['dataloader'], model=model, optimizer=optimizer,
+                device=device, tb_log=tensorboard_log, tbar=tbar, output_dir=output_dir,cell_size=cfg['model']['cell_size'],
+                anchor_loss=cfg['model']['anchor_loss'], usp_loss=usp_loss, repeatability_loss=None
             )
         with torch.no_grad():
             for val_loader in val_dataloaders:

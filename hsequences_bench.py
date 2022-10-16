@@ -2,7 +2,7 @@ import datetime
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
-import matplotlib .pyplot as plt
+import matplotlib.pyplot as plt
 
 from configs import config_hpatches
 from utils import common_utils
@@ -167,18 +167,6 @@ def hsequences_metrics():
     num_features = np.array(metrics_results['num_features']).mean()
     num_matches = np.array(metrics_results['num_matches']).mean()
 
-    print('\n## Overlap @{0}:\n \
-           ## top_k @{1}:\n \
-           ## pixel_threshold @{2}:\n \
-           #### Rep. Multi: {3:.4f}\n \
-           #### Rep. Single: {4:.4f}\n \
-           #### Overlap Multi: {5:.4f}\n \
-           #### Overlap Single: {6:.4f}\n \
-           #### Num Feats: {7:.4f}\n \
-           #### Num Matches: {8:.4f}'.format(
-           args.overlap, args.top_k_points, args.pixel_threshold,
-           rep_multi, rep_single, error_overlap_s, error_overlap_m, num_features, num_matches
-    ))
 
     logger.info('\n## Overlap @{0}:\n \
            ## top_k @{1}:\n \
@@ -195,7 +183,7 @@ def hsequences_metrics():
 
     metrics_file = Path(output_dir, 'metrics')
     np.savez(metrics_file, rep_single=rep_single, rep_multi=rep_multi, error_overlap_s=error_overlap_s, error_overlap_m=error_overlap_m, num_features=num_features)
-    # savez_compressed
+
 
 if __name__ == '__main__':
     hsequences_metrics()

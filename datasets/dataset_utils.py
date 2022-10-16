@@ -2,12 +2,64 @@ import cv2
 import numpy as np
 import random
 import torch
+from imgaug import augmenters as iaa
 
 from benchmark_test import repeatability_tools, geometry_tools
+
 
 perms = ((0, 1, 2), (0, 2, 1),
          (1, 0, 2), (1, 2, 0),
          (2, 0, 1), (2, 1, 0))
+
+
+def ratio_preserving_resize(img, target_size):
+    scales = np.array((target_size[0]/img.shape[0], target_size[1]/img.shape[1]))##h_s,w_s
+
+    new_size = np.round(np.array(img.shape[:2])*np.max(scales)).astype(np.int)#
+    temp_img = cv2.resize(img, tuple(new_size[::-1]))
+    curr_h, curr_w = temp_img.shape[:2]
+    target_h, target_w = target_size
+    ##
+    hp = (target_h-curr_h)//2
+    wp = (target_w-curr_w)//2
+    aug = iaa.Sequential([iaa.CropAndPad(px=(hp, wp, target_h-curr_h-hp, target_w-curr_w-wp),keep_size=False)])
+    new_img = aug(image=temp_img)
+    return new_img
+
+
+def adapt_homography_to_preprocessing(zip_data, args):
+    '''缩放后对应的图像的homography矩阵
+    :param zip_data:{'shape':原图像HW,
+                        'warped_shape':warped图像HW,
+                        'homography':原始变换矩阵}
+    :return:对应当前图像尺寸的homography矩阵
+    '''
+    H = zip_data['homography'].astype(np.float32)
+    source_size = zip_data['shape'].astype(np.float32)#h,w
+    source_warped_size = zip_data['warped_shape'].astype(np.float32)#h,w
+    target_size = np.array(args.resize_shape,dtype=np.float32)#h,w
+
+    # Compute the scaling ratio due to the resizing for both images
+    s = np.max(target_size/source_size)
+    up_scale = np.diag([1./s, 1./s, 1])
+    warped_s = np.max(target_size/source_warped_size)
+    down_scale = np.diag([warped_s, warped_s, 1])
+
+    # Compute the translation due to the crop for both images
+    pad_y, pad_x = (source_size*s - target_size)//2.0
+
+    translation = np.array([[1, 0, pad_x],
+                            [0, 1, pad_y],
+                            [0, 0, 1]],dtype=np.float32)
+    pad_y, pad_x = (source_warped_size*warped_s - target_size) //2.0
+
+    warped_translation = np.array([[1,0, -pad_x],
+                                    [0,1, -pad_y],
+                                    [0,0,1]], dtype=np.float32)
+    H = warped_translation @ down_scale @ H @ up_scale @ translation
+    return H
+
+
 
 def read_bgr_image(path):
     img_bgr = cv2.imread(path, cv2.IMREAD_COLOR)

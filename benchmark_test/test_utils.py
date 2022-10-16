@@ -1,5 +1,5 @@
 import cv2
-import matplotlib .pyplot as plt
+import matplotlib.pyplot as plt
 
 
 def create_results():
@@ -24,6 +24,24 @@ def create_metrics_results(sequences, top_k, overlap, pixel_threshold):
     results['sequences'] = sequences
     results['top_k'] = top_k
     results['overlap'] = overlap
+    results['pixel_threshold'] = pixel_threshold
+    return results
+
+
+def create_reisze_results():
+       return {
+       'repeatability': [],
+       'localization_err': [],
+       'common_src_num': [],
+       'common_dst_num': [],
+       'rep_src_num': [],
+       'rep_dst_num': []
+    }
+
+def create_resize_metrics_results(sequences, top_k, pixel_threshold):
+    results = create_reisze_results()
+    results['sequences'] = sequences
+    results['top_k'] = top_k
     results['pixel_threshold'] = pixel_threshold
     return results
 

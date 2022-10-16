@@ -34,8 +34,8 @@ def generate_score_map(image_RGB_norm, model, device, config, is_debugging):
     output_pad_batch = model(image_pad_batch.to(device))
 
 
-    score_map_pad_batch = F.relu(train_utils.depth_to_space_without_softmax(output_pad_batch, config['cell_size']))
-    score_map_pad_np = score_map_pad_batch[0, 0, :, :].cpu().detach().numpy()
+    score_map_pad_batch = output_pad_batch['prob']
+    score_map_pad_np = score_map_pad_batch[0, :, :].cpu().detach().numpy()
 
     # unpad images to get the original resolution
     new_height, new_width = score_map_pad_np.shape[0], score_map_pad_np.shape[1]

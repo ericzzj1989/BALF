@@ -1,7 +1,7 @@
 import os
 import torch
 
-from model import mlp_ma, mlp_ma_pos
+from model import mlp_ma, mlp_ma_decoder
 
 def load_pretrained_model(model, filename, logger, optimizer=None, device='cuda'):
     if not os.path.isfile(filename):
@@ -47,5 +47,8 @@ def load_pretrained_model(model, filename, logger, optimizer=None, device='cuda'
 
 
 def load_model(model_cfg):
-    model = mlp_ma.MLPMA(model_cfg['network_architecture'])
+    if model_cfg['name'] == 'mlp_ma':
+        model = mlp_ma.MLPMA(model_cfg['network_architecture'])
+    elif model_cfg['name'] == 'mlp_ma_decoder':
+        model = mlp_ma_decoder.MLP_MA_DECODER(model_cfg['network_architecture'])
     return model

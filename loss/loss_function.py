@@ -1,25 +1,46 @@
-import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from torchgeometry.core import warp_perspective
 
-from utils import train_utils, common_utils
-from benchmark_test import geometry_tools, repeatability_tools
+from utils import tensor_op
+# from benchmark_test import geometry_tools, repeatability_tools
 
-
+'''
 def anchor_loss(device, input, target, loss_type='softmax'):
     if loss_type == "l2":
-        loss_func = nn.MSELoss(reduction="mean")
+        loss_func = torch.nn.MSELoss(reduction="mean")
         loss = loss_func(input, target)
     elif loss_type == "softmax":
         B, C, H, W = input.shape
-        criterion = nn.BCELoss(reduction='none').to(device)
-        loss = criterion(nn.functional.softmax(input, dim=1), target)
+        criterion = torch.nn.BCELoss(reduction='none').to(device)
+        loss = criterion(torch.nn.functional.softmax(input, dim=1), target)
         loss = loss.sum() / (B*H*W + 1e-10)
+    return loss
+'''
+
+
+def detector_loss(keypoint_map, logits, valid_mask=None, grid_size=8, device='cpu'):
+    labels = keypoint_map.float()#to [B, 1, H, W]
+    labels = tensor_op.pixel_shuffle_inv(labels, grid_size) # to [B,64,H/8,W/8]
+    B,C,h,w = labels.shape#h=H/grid_size,w=W/grid_size
+    labels = torch.cat([2*labels, torch.ones([B,1,h,w],device=device)], dim=1)
+    # Add a small random matrix to randomly break ties in argmax
+    labels = torch.argmax(labels + torch.zeros(labels.shape,device=device).uniform_(0,0.1),dim=1)#B*65*Hc*Wc
+
+    # Mask the pixels if bordering artifacts appear
+    valid_mask = torch.ones_like(keypoint_map) if valid_mask is None else valid_mask
+    valid_mask = tensor_op.pixel_shuffle_inv(valid_mask, grid_size)#[B, 64, H/8, W/8]
+    valid_mask = torch.prod(valid_mask, dim=1).unsqueeze(dim=1).type(torch.float32)#[B,1,H/8,W/8]
+
+    ## method 1
+    ce_loss = F.cross_entropy(logits, labels, reduction='none',)
+    valid_mask = valid_mask.squeeze(dim=1)
+    loss = torch.divide(torch.sum(ce_loss * valid_mask, dim=(1, 2)), torch.sum(valid_mask + 1e-6, dim=(1, 2)))
+    loss = torch.mean(loss)
+
     return loss
 
 
+'''
 class ScoreLoss(object):
     def __init__(self, devie, loss_config):
         self.device = devie
@@ -47,8 +68,8 @@ class ScoreLoss(object):
         loss = 0
         loss_batch_array = np.zeros((2,))
 
-        src_score_maps_batch = F.relu(train_utils.depth_to_space_without_softmax(src_outputs_score_batch, cell_size))
-        dst_score_maps_batch = F.relu(train_utils.depth_to_space_without_softmax(dst_outputs_score_batch, cell_size))
+        src_score_maps_batch = src_outputs_score_batch['prob'].unsqueeze(dim=1)
+        dst_score_maps_batch = dst_outputs_score_batch['prob'].unsqueeze(dim=1)
 
         for i in range(batch_size):
             loss_batch, loss_item = self.scoreloss(
@@ -274,8 +295,8 @@ def repeatability_loss_batch(src_outputs_score_batch, dst_outputs_score_batch, h
     batch_size = src_outputs_score_batch.shape[0]
     loss = 0
 
-    src_score_maps_batch = F.relu(train_utils.depth_to_space_without_softmax(src_outputs_score_batch, cell_size))
-    dst_score_maps_batch = F.relu(train_utils.depth_to_space_without_softmax(dst_outputs_score_batch, cell_size))
+    src_score_maps_batch = src_outputs_score_batch['prob'].unsqueeze(dim=1)
+    dst_score_maps_batch = dst_outputs_score_batch['prob'].unsqueeze(dim=1)
 
     mask_src_batch, mask_dst_batch = geometry_tools.create_common_region_masks_tensor(h_dst_2_src_batch, shape_src, shape_dst)
 
@@ -287,3 +308,4 @@ def repeatability_loss_batch(src_outputs_score_batch, dst_outputs_score_batch, h
         loss += loss_batch
 
     return loss / batch_size
+'''

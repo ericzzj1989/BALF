@@ -1,6 +1,6 @@
 data:
   synth_dir: data/synth/
-  dataset_names: [COCO]
+  dataset_names: [GOPRO]
   COCO:
     images_path: data/COCO
     labels_path: data/COCO_raw_ground_truth_more_points
@@ -27,7 +27,7 @@ data:
 
 
 model:
-  name: mlp_ma
+  name: mlp_ma_decoder
   network_architecture:
     en_embed_dims: [3,32,64,128,256]
     grid_size: [8,8]
@@ -37,6 +37,7 @@ model:
     input_proj_factor: 2
     channels_reduction: 4
     out_channels: 65
+    cell_size: 8
   optimizer:
     name: adam
     lr: 0.0001
@@ -54,7 +55,7 @@ model:
   anchor_loss: softmax
   unsuper_loss:
     downsample: 8
-    image_shape: [192,192]
+    image_shape: [256,256]
     correspond: 8
     usp_weight: 2.0
     position_weight: 1.0

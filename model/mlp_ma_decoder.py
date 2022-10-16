@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import einops
-from utils import tensor_op
+
+from model.decoder import DetectorHead
 
 
 def block_images_einops(x, patch_size):
@@ -242,9 +243,9 @@ class Down(nn.Module):
             # x = einops.rearrange(x, "b h w c -> b c h w")
             return x
         
-class MLPMA(nn.Module):
+class MLP_MA_DECODER(nn.Module):
     def __init__(self, model_cfg):
-        super(MLPMA, self).__init__()
+        super(MLP_MA_DECODER, self).__init__()
         en_embed_dims = model_cfg['en_embed_dims']
         grid_size = model_cfg['grid_size']
         block_size = model_cfg['block_size']
@@ -252,7 +253,7 @@ class MLPMA(nn.Module):
         block_gmlp_factor = model_cfg['block_gmlp_factor']
         input_proj_factor = model_cfg['input_proj_factor']
         channels_reduction = model_cfg['channels_reduction']
-        out_channels = model_cfg['out_channels']
+        cell_size = model_cfg['cell_size']
 
 
         self.down1 = Down(en_embed_dims[0],en_embed_dims[1], grid_size=grid_size, block_size=block_size,
@@ -272,34 +273,13 @@ class MLPMA(nn.Module):
             input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=False
         )
 
-        # self.detector_head =  nn.Sequential(
-        #     # nn.Conv2d(en_embed_dims[3], en_embed_dims[4], kernel_size=3, stride=1, padding=1),
-        #     # nn.BatchNorm2d(en_embed_dims[4]),
-        #     nn.ReLU(inplace=True),
-        #     nn.Conv2d(en_embed_dims[4], out_channels, kernel_size=1, stride=1, padding=0),
-        #     nn.BatchNorm2d(out_channels)
-        # )
-        self.act = nn.ReLU(inplace=True)
-        self.dense = nn.Linear(en_embed_dims[4], out_channels)
-        self.norm = nn.BatchNorm2d(out_channels)
+        self.detector_head = DetectorHead(input_channel=en_embed_dims[4], cell_size=cell_size)
 
     def forward(self, x):
         x = self.down1(x)
         x = self.down2(x)
         x = self.down3(x)
-        x = self.down4(x)
-        x = self.act(x)
-        x = x.permute(0, 2, 3, 1)
-        x = self.dense(x)
-        x = x.permute(0, 3, 1, 2)
-        res = self.norm(x)
-
-
-        softmax_op = torch.nn.Softmax(dim=1)
-        prob = softmax_op(res)
-        prob = prob[:, :-1, :, :]  # remove dustbin,[B,64,H,W]
-        # Reshape to get full resolution heatmap.
-        prob = tensor_op.pixel_shuffle(prob, 8)  # [B,1,H*8,W*8]
-        prob = prob.squeeze(dim=1)#[B,H,W]
+        feat_map = self.down4(x)
         
-        return {'logits':res, 'prob':prob}
+        outputs = self.detector_head(feat_map)
+        return outputs
