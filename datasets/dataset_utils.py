@@ -279,19 +279,17 @@ def select_k_best(points, k):
     points has shape (num_points, 3) where the last coordinate is the proba. """
     sorted_prob = points
     if points.shape[1] > 2 and k != 0:
-        sorted_prob = points[points[:, 2].argsort(), :2]
-        # sorted_prob = points[points[:, 2].argsort(), :]
+        # sorted_prob = points[points[:, 2].argsort(), :2]
+        sorted_prob = points[points[:, 2].argsort(), :]
         start = min(k, points.shape[0])
         sorted_prob = sorted_prob[-start:, :]
-    return sorted_prob[:,:2]
+    return sorted_prob
 
 def labels_to_heatmap(points, IMAGE_SHAPE):
     heatmap = np.zeros((IMAGE_SHAPE[0], IMAGE_SHAPE[1]))
     points = points.astype(int)
     heatmap[points[:, 1], points[:, 0]] = 1
-    heatmap = (heatmap * 255).astype(np.uint8)
-    heatmap = heatmap.astype('float32') / 255.0
-    return heatmap
+    return heatmap.astype('float32')
 
 
 def get_window_point(shape, patch_size, crop_type='random'):

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import time
 import torch
 
-from configs import config_hpatches
+from configs import config_gopro_eval
 from utils import common_utils
 from utils.logger import logger
 from model import get_model
@@ -14,7 +14,25 @@ from datasets import dataset_utils
 from benchmark_test import geometry_tools, repeatability_tools
 
 
-'''
+def extract_features(image_RGB_norm, model, device, args, is_debugging=False):
+    height_RGB_norm, width_RGB_norm = image_RGB_norm.shape[0], image_RGB_norm.shape[1]
+    
+    image_even = dataset_utils.make_shape_even(image_RGB_norm)
+    height_even, width_even = image_even.shape[0], image_even.shape[1]
+    
+    image_pad = dataset_utils.mod_padding_symmetric(image_even, factor=64)
+    
+
+    image_pad_tensor = torch.tensor(image_pad, dtype=torch.float32)
+    image_pad_tensor = image_pad_tensor.permute(2, 0, 1)
+    image_pad_batch = image_pad_tensor.unsqueeze(0)
+
+    t0 = time.time()
+    output_pad_batch = model(image_pad_batch.to(device))
+    t1 = time.time()
+    extract_time = t1-t0
+
+
     if args.nms == 'apply_nms':
         score_map_pad_batch = output_pad_batch['prob']
         score_map_pad_np = score_map_pad_batch[0, :, :].cpu().detach().numpy()
@@ -82,6 +100,27 @@ from benchmark_test import geometry_tools, repeatability_tools
 
         pts = np.asarray(new_indexes)
 
+    elif args.nms == 'nms_fast':
+        score_map_pad_batch = output_pad_batch['prob']
+        score_map_pad_np = score_map_pad_batch[0, :, :].cpu().detach().numpy()
+
+        # unpad images to get the original resolution
+        new_height, new_width = score_map_pad_np.shape[0], score_map_pad_np.shape[1]
+        h_start = new_height // 2 - height_even // 2
+        h_end = h_start + height_RGB_norm
+        w_start = new_width // 2 - width_even // 2
+        w_end = w_start + width_RGB_norm
+        score_map = score_map_pad_np[h_start:h_end, w_start:w_end]
+
+
+        score_map_remove_border = geometry_tools.remove_borders(score_map, borders=args.border_size)
+
+        ## method 2 for keypoints
+        pts = repeatability_tools.get_points_direct_from_score_map(
+            heatmap=score_map_remove_border, conf_thresh=args.heatmap_confidence_threshold,
+            nms_size=args.nms_size, subpixel=args.sub_pixel, patch_size=args.patch_size, order_coord=args.order_coord
+        )
+
     elif args.nms == 'box_nms':
         score_map_pad_batch = score_map_pad_batch = output_pad_batch['prob']
         # score_map_pad_np = score_map_pad_batch[0, 0, :, :].cpu().detach().numpy()
@@ -129,47 +168,9 @@ from benchmark_test import geometry_tools, repeatability_tools
             new_indexes.append(tmp)
 
         pts = np.asarray(new_indexes)
-'''
 
 
-def extract_features(image_RGB_norm, model, device, args, is_debugging=False):
-    height_RGB_norm, width_RGB_norm = image_RGB_norm.shape[0], image_RGB_norm.shape[1]
-    
-    image_even = dataset_utils.make_shape_even(image_RGB_norm)
-    height_even, width_even = image_even.shape[0], image_even.shape[1]
-    
-    image_pad = dataset_utils.mod_padding_symmetric(image_even, factor=64)
-    
 
-    image_pad_tensor = torch.tensor(image_pad, dtype=torch.float32)
-    image_pad_tensor = image_pad_tensor.permute(2, 0, 1)
-    image_pad_batch = image_pad_tensor.unsqueeze(0)
-
-    t0 = time.time()
-    output_pad_batch = model(image_pad_batch.to(device))
-    t1 = time.time()
-    extract_time = t1-t0
-
-    # elif args.nms == 'nms_fast':
-    score_map_pad_batch = output_pad_batch['prob']
-    score_map_pad_np = score_map_pad_batch[0, :, :].cpu().detach().numpy()
-
-    # unpad images to get the original resolution
-    new_height, new_width = score_map_pad_np.shape[0], score_map_pad_np.shape[1]
-    h_start = new_height // 2 - height_even // 2
-    h_end = h_start + height_RGB_norm
-    w_start = new_width // 2 - width_even // 2
-    w_end = w_start + width_RGB_norm
-    score_map = score_map_pad_np[h_start:h_end, w_start:w_end]
-
-
-    score_map_remove_border = geometry_tools.remove_borders(score_map, borders=args.border_size)
-
-    ## method 2 for keypoints
-    pts = repeatability_tools.get_points_direct_from_score_map(
-        heatmap=score_map_remove_border, conf_thresh=args.heatmap_confidence_threshold,
-        nms_size=args.nms_size, subpixel=args.sub_pixel, patch_size=args.patch_size, order_coord=args.order_coord
-    )
 
     if pts.size == 0:
         return None, None
@@ -182,9 +183,11 @@ def extract_features(image_RGB_norm, model, device, args, is_debugging=False):
 
 
 def main():
-    args, cfg = config_hpatches.parse_config()
+    args, cfg = config_gopro_eval.parse_config()
 
     start_time = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+    if args.split == 'src_sharp_dst_blur':
+        args.results_detection_dir = 'results_gopro_src_sharp_dst_blur_detection'
     output_dir = Path(args.results_detection_dir, args.exper_name, start_time)
     common_utils.check_directory(output_dir)
     detection_output_dir = output_dir / 'detection'
@@ -204,7 +207,7 @@ def main():
 
     total_time = []
     
-    list_file = open(args.hsequences_list_file, 'r')
+    list_file = open(args.gopro_list_file, 'r')
     images_list = sorted(list_file.readlines())
     iterate = tqdm(images_list, total=len(images_list), desc="Motion Blur Detection")
 
@@ -215,9 +218,6 @@ def main():
         if not Path(image_path).exists():
             print('[ERROR]: File {0} not found!'.format(image_path))
             return
-
-        if 'i_dc' in image_path and args.nms == 'box_nms':
-            continue
 
         logger.info('\nRead image from path: {}'.format(image_path))     
 
@@ -245,10 +245,7 @@ def main():
             logger.info('No kpts in {}'.format(path_to_image.rstrip('\n')))
             continue
 
-        if 'blur' in image_path:
-            image_path = image_path.replace('/result', '')
-
-        logger.info('Save image path: {}'.format(image_path))
+        logger.info('Save image path: {}\n'.format(image_path))
 
         save_pts_dir = Path(detection_output_dir, image_path)
         common_utils.create_result_dir(str(save_pts_dir))

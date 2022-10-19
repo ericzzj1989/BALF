@@ -84,7 +84,7 @@ class COCO(base_dataset.base_dataset):
                 label_path = Path(self.dataset_cfg['labels_path'], image_path.parts[-3], "{}.npz".format(image_path.stem))
 
             src_label = np.load(label_path, allow_pickle=True)['pts']
-            src_label_k_best = dataset_utils.select_k_best(src_label, 0)
+            src_label_k_best = dataset_utils.select_k_best(src_label, self.config['top_k'])
             src_heatmap = dataset_utils.labels_to_heatmap(src_label_k_best, source_shape)
 
             inv_h_tensor = torch.tensor(inv_h, dtype=torch.float32)

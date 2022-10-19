@@ -88,25 +88,26 @@ scheduler = train_utils.build_scheduler(
     scheduler_cfg=cfg['model']['scheduler'])
 
 
-# if best_epoch == 0:
-#     with torch.no_grad():
-#         for val_loader in val_dataloaders:
-#             repeatability,_,_,_,_,rep_s_nms,_,_,_,_, = train_utils.check_val_repeatability(
-#                 val_loader['dataloader'], model=model, device=device, tb_log=None, cur_epoch=-1,
-#                 cell_size=cfg['model']['cell_size'], nms_size=cfg['model']['nms_size'], num_points=25
-#             )
-#             best_repeatability = rep_s_nms
-#             best_epoch = -1
-#             logger.info(('\n Epoch -1 : Repeatability Validation: {:.3f}.'.format(repeatability)))
-#             logger.info(('\n Epoch -1 : KeyNet NMS Repeatability Validation: {:.3f}.\n\n'.format(rep_s_nms)))
-#             # logger.info(('\n Epoch -1 : Position Repeatability Validation: {:.3f}.\n\n'.format(rep_s_pos)))
+if best_epoch == 0:
+    with torch.no_grad():
+        for val_loader in val_dataloaders:
+            repeatability,_,_,_,_,rep_s_nms,_,_,_,_, = train_utils.check_val_repeatability(
+                val_loader['dataloader'], model=model, device=device, tb_log=None, cur_epoch=-1,
+                cell_size=cfg['model']['cell_size'], nms_size=cfg['model']['nms_size'], num_points=25
+            )
+            best_repeatability = repeatability
+            best_epoch = -1
+            logger.info(('\n Epoch -1 : Repeatability Validation: {:.3f}.'.format(repeatability)))
+            logger.info(('\n Epoch -1 : KeyNet NMS Repeatability Validation: {:.3f}.\n\n'.format(rep_s_nms)))
+            # logger.info(('\n Epoch -1 : Position Repeatability Validation: {:.3f}.\n\n'.format(rep_s_pos)))
 
-
+count = 0
+max_counts = 3
 logger.info("================ Start Training ================ ")
 with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) as tbar:
     for cur_epoch in tbar:
         for train_loader in train_dataloaders:
-            train_utils.train_model(
+            loss = train_utils.train_model(
                 cur_epoch=cur_epoch, dataloader=train_loader['dataloader'], model=model, optimizer=optimizer,
                 device=device, tb_log=tensorboard_log, tbar=tbar, output_dir=output_dir,cell_size=cfg['model']['cell_size'],
                 anchor_loss=cfg['model']['anchor_loss'], usp_loss=usp_loss, repeatability_loss=None
@@ -134,12 +135,23 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
         # logger.info('\t\trep_m_nms : {:.3f}, error_overlap_s_nms : {:.3f}, error_overlap_m_nms : {:.3f}, possible_matches_nms : {:.3f}. \n\n'\
         #             .format( rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos))
 
-        if best_repeatability < rep_s_nms:
-            best_repeatability = rep_s_nms
-            best_epoch = cur_epoch + 1
+        # Control the early stopping
+        if cur_epoch == 0:
+            loss_best = loss
+        else:
+            if best_repeatability < rep_s:
+                best_repeatability = rep_s
+                best_epoch = cur_epoch + 1
 
-            ckpt_name = ckpt_dir / 'best_model'
-            logger.save_model(train_utils.ckpt_state(model, optimizer, best_epoch, best_repeatability), ckpt_name)
+                ckpt_name = ckpt_dir / 'best_model'
+                logger.save_model(train_utils.ckpt_state(model, optimizer, best_epoch, best_repeatability), ckpt_name)
+
+                count = 0
+            elif rep_s > 0:
+                if loss_best > loss:
+                    loss_best = loss
+                else:
+                    count += 1
     
 
         trained_epoch = cur_epoch + 1
@@ -155,6 +167,9 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
             logger.save_model(train_utils.ckpt_state(model, optimizer, trained_epoch, best_repeatability), ckpt_name)        
 
         scheduler.step()
+
+        if count > max_counts:
+            break
 
 logger.info("Best validation repeatability score : {} at epoch {}. ".format(best_repeatability, best_epoch))
 logger.info("================ Enhd Training ================ \n\n")

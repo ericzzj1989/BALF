@@ -1,6 +1,7 @@
 data:
   synth_dir: data/synth/
   dataset_names: [GOPRO]
+  top_k: 4500
   COCO:
     images_path: data/COCO
     labels_path: data/COCO_raw_ground_truth_more_points

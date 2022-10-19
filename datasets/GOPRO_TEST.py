@@ -4,7 +4,7 @@ import json
 
 from datasets import dataset_utils
 
-class HSequences(object):
+class GOPRO_test(object):
     
     def __init__(self, dataset_path, split, split_path):
 
@@ -12,7 +12,7 @@ class HSequences(object):
         self.split = split
 
         self.splits = json.load(open(split_path))
-        self.sequences = self.splits[self.split]['test']
+        self.sequences = self.splits['test']
 
         self.count = 0
 
@@ -40,28 +40,30 @@ class HSequences(object):
         h_dst_2_src = []
 
         sequence_path = Path(self.dataset_path, self.sequences[folder_id])
-        image_src_path = str(sequence_path) + '/1.ppm'
+
+        if self.split == 'src_blur_dst_sharp':
+            image_src_path = str(sequence_path) + '/blur_gamma/1.png'
+        elif self.split == 'src_sharp_dst_blur':
+            image_src_path = str(sequence_path) + '/sharp/1.png'
 
         im_src_BGR = dataset_utils.read_bgr_image(image_src_path)
 
-        for i in range(5):
+        for i in range(6):
 
-            if 'blur' in self.dataset_path:
-                image_dst_path = str(sequence_path) + '/result/' + str(i+2) + '.ppm'
-                assert image_src_path.split('/')[-2] == image_dst_path.split('/')[-3]
-            elif 'release' in self.dataset_path:
-                image_dst_path = str(sequence_path) + '/' + str(i+2) + '.ppm'
-                assert image_src_path.split('/')[-2] == image_dst_path.split('/')[-2]
+            if self.split == 'src_blur_dst_sharp':
+                image_dst_path = str(sequence_path) + '/sharp/' + str(i+1) + '.png'
+            elif self.split == 'src_sharp_dst_blur':
+                image_dst_path = str(sequence_path) + '/blur_gamma/' + str(i+1) + '.png'
 
+            assert image_src_path.split('/')[-3] == image_dst_path.split('/')[-3]
 
             print('dst image path: ', image_dst_path)
-
 
             im_dst_BGR = dataset_utils.read_bgr_image(image_dst_path)
 
             images_dst_BGR.append(im_dst_BGR)
 
-            homography_path = str(sequence_path) + '/H_1_' + str(i+2)
+            homography_path = str(sequence_path) + '/H_1_' + str(i+1)
             src_2_dst, dst_2_src = self.read_homography(homography_path)
             h_src_2_dst.append(src_2_dst)
             h_dst_2_src.append(dst_2_src)

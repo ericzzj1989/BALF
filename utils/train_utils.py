@@ -250,6 +250,7 @@ def train_model(
     total_loss_avg = torch.stack(total_loss_avg)
     logging.info('Epoch {} (Training). Loss: {:0.4f}. Time per epoch: {}. \n'.format(cur_epoch, torch.mean(total_loss_avg), round(toc-tic,4)))
 
+    return torch.mean(total_loss_avg)
 
 def prob_to_score_maps_tensor_batch(prob_outputs, nms_size):
     score_maps_np = prob_outputs.detach().cpu().numpy()
@@ -565,8 +566,8 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
         src_scores = src_score_maps
         dst_scores = dst_score_maps
         # Apply NMS
-        src_scores = repeatability_tools.get_nms_score_map_from_score_map(src_scores[0, :, :].cpu().numpy(), nms_size)
-        dst_scores = repeatability_tools.get_nms_score_map_from_score_map(dst_scores[0, :, :].cpu().numpy(), nms_size)
+        src_scores = repeatability_tools.get_nms_score_map_from_score_map(src_scores[0, :, :].cpu().numpy(), conf_thresh=0.015, nms_size=nms_size)
+        dst_scores = repeatability_tools.get_nms_score_map_from_score_map(dst_scores[0, :, :].cpu().numpy(), conf_thresh=0.015, nms_size=nms_size)
 
         src_scores = np.multiply(src_scores, mask_src)
         dst_scores = np.multiply(dst_scores, mask_dst)

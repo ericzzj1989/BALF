@@ -19,11 +19,11 @@ def parse_config():
                         help='Extract detections in the resized image')
     parser.add_argument('--cell_size', type=int, default=8,
                         help='Pixel shuffle.')
-    parser.add_argument('--nms', type=str, 
-                        help='apply_nms, apply_nms_fast, nms_fast, box_nms (default: nms_fast)', default='nms_fast')
+    parser.add_argument('--nms', type=str, default='nms_fast',
+                        help='apply_nms, apply_nms_fast, nms_fast, box_nms (default: nms_fast)')
     parser.add_argument('--nms_size', type=int, default=15,
                         help='The NMS size for computing the validation repeatability.')
-    parser.add_argument('--num_points', type=int, default=1500,
+    parser.add_argument('--num_points', type=int, default=10000,
                         help='The number of desired features to extract.')
     parser.add_argument('--border_size', type=int, default=15,
                         help='The number of pixels to remove from the borders to compute the repeatability.')

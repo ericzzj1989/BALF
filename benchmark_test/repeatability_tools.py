@@ -95,7 +95,7 @@ def get_nms_score_map_from_score_map(
     pts = pts[:, inds[::-1]]  # Sort by confidence.
 
     nms_heatmap = np.zeros_like(heatmap)
-    nms_heatmap[pts[1,:],pts[0,:]] = pts[2,:]
+    nms_heatmap[pts[1,:].astype(int),pts[0,:].astype(int)] = pts[2,:]
 
     return nms_heatmap # H,W
 

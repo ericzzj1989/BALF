@@ -9,3 +9,7 @@ runs/
 data/
 results_hsequences_bench/
 results_hsequences_detection/
+results_gopro_src_blur_dst_sharp_bench/
+results_gopro_src_blur_dst_sharp_detection/
+results_gopro_src_sharp_dst_blur_bench/
+results_gopro_src_sharp_dst_blur_detection/
