@@ -1,5 +1,5 @@
 model:
-  name: mlp_ma # fpn_inception
+  name: mlp_ma_decoder # mlp_ma_decoder, ablation_conv_rcab
   network_architecture:
     en_embed_dims: [3,32,64,128,256]
     grid_size: [8,8]
@@ -11,4 +11,4 @@ model:
     out_channels: 65
     cell_size: 8
     
-resize_image: [240,320]
+resize_image: [480,640]

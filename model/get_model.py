@@ -1,7 +1,7 @@
 import os
 import torch
 
-from model import mlp_ma, mlp_ma_decoder
+from model import ablation_n_1, mlp_ma, mlp_ma_decoder, ablation_conv_rcab, ablation_n_4, ablation_n_2, ablation_n_1
 
 def load_pretrained_model(model, filename, logger, optimizer=None, device='cuda'):
     if not os.path.isfile(filename):
@@ -41,6 +41,8 @@ def load_pretrained_model(model, filename, logger, optimizer=None, device='cuda'
                 optimizer_ckpt = torch.load(optimizer_filename, map_location=loc_type)
                 optimizer.load_state_dict(optimizer_ckpt['optimizer_state'])
 
+    assert len(update_model_state) == len(model.state_dict())
+
     logger.info('==> Done (loaded %d/%d)' % (len(update_model_state), len(model.state_dict())))
 
     return epoch, repeatability
@@ -51,4 +53,12 @@ def load_model(model_cfg):
         model = mlp_ma.MLPMA(model_cfg['network_architecture'])
     elif model_cfg['name'] == 'mlp_ma_decoder':
         model = mlp_ma_decoder.MLP_MA_DECODER(model_cfg['network_architecture'])
+    elif model_cfg['name'] == 'ablation_conv_rcab':
+        model = ablation_conv_rcab.Ablation_Conv_RCAB(model_cfg['network_architecture'])
+    elif model_cfg['name'] == 'ablation_n_4':
+        model = ablation_n_4.Ablation_N_4(model_cfg['network_architecture'])
+    elif model_cfg['name'] == 'ablation_n_2':
+        model = ablation_n_2.Ablation_N_2(model_cfg['network_architecture'])
+    elif model_cfg['name'] == 'ablation_n_1':
+        model = ablation_n_1.Ablation_N_1(model_cfg['network_architecture'])
     return model

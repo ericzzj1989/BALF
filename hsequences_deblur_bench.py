@@ -4,37 +4,20 @@ from tqdm import tqdm
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-from configs import config_gopro_eval
+from configs import config_hpatches
 from utils import common_utils
 from utils.logger import logger
-from datasets import GOPRO_TEST
+from datasets import HSequences
 from benchmark_test import test_utils, geometry_tools, repeatability_tools
 
 
-def gopro_metrics():
-    args = config_gopro_eval.parse_eval_config()
+def hsequences_metrics():
+    args = config_hpatches.parse_eval_deblur_config()
 
-    assert(args.comparison_method in args.results_detection_dir.split('/')[0])
-    assert(args.comparison_method in args.results_detection_dir.split('/')[1])
-    assert args.results_detection_dir.split('/')[-1] == args.data_dir.split('/')[-1]
-
-    if args.comparison_method == 'src_blur_dst_sharp':
-        args.top_k_points = 2000
-        args.results_bench_dir = 'results_gopro_src_blur_dst_sharp_bench/'
-    elif args.comparison_method == 'src_blur_dst_blur':
-        args.top_k_points = 2000
-        args.results_bench_dir = 'results_gopro_src_blur_dst_blur_bench/'
-    elif args.comparison_method == 'src_sharp_dst_blur':
-        args.results_bench_dir = 'results_gopro_src_sharp_dst_blur_bench/'
-    elif args.comparison_method == 'src_blur_dst_blur_diff':
-        args.top_k_points = 3000
-        args.results_bench_dir = 'results_gopro_src_blur_dst_blur_diff_bench/'
-        assert(args.results_detection_dir.split('/')[1][-9:] == args.comparison_method[-9:])
-
-    print('Evaluate {} sequences'.format(args.comparison_method))
+    print('Evaluate {} sequences'.format(args.split))
     common_utils.check_directory(args.results_bench_dir)
     start_time = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    output_dir = Path(args.results_bench_dir, args.results_detection_dir.split('/')[1], start_time, '{}_overlap{}_top-k{}_pixel-threshold{}'.format(args.comparison_method, args.overlap, args.top_k_points, args.pixel_threshold))
+    output_dir = Path(args.results_bench_dir, args.results_detection_dir.split('/')[1], start_time, 'split-{}_overlap{}_top-k{}_pixel-threshold{}'.format(args.split, args.overlap, args.top_k_points, args.pixel_threshold))
     common_utils.check_directory(output_dir)
 
     logger.initialize(args, output_dir)
@@ -43,12 +26,11 @@ def gopro_metrics():
         visualization_dir = Path(output_dir, 'visualization_detection')
         common_utils.check_directory(visualization_dir)
 
-    dataloader = GOPRO_TEST.GOPRO_test(args.data_dir, args.comparison_method, args.split_path)
-    metrics_results = test_utils.create_metrics_results(args.comparison_method, args.top_k_points, args.overlap, args.pixel_threshold)
+    dataloader = HSequences.HSequences_Delbur(args.data_dir, args.split, args.split_path, args.deblur_method)
+    metrics_results = test_utils.create_metrics_results(args.split, args.top_k_points, args.overlap, args.pixel_threshold)
 
     counter_sequences = 0
-    counter_fail_extraction = 0
-    iterate = tqdm(range(len(dataloader.sequences)), total=len(dataloader.sequences), desc="GoPro Eval")
+    iterate = tqdm(range(len(dataloader.sequences)), total=len(dataloader.sequences), desc="HSequences Eval")
 
     # for sequence_index in tqdm(range
     for sequence_index in iterate:
@@ -65,37 +47,19 @@ def gopro_metrics():
         print('\n Computing '+sequence_name+' sequence {} / {} \n'.format(counter_sequences, len(dataloader.sequences)))
         
         for im_dst_index in tqdm(range(len(images_dst_BGR))):
-            if im_dst_index == 0 and args.comparison_method == 'src_blur_dst_blur':
-                continue
-            if im_dst_index == 0 and args.comparison_method == 'src_blur_dst_blur_diff':
-                continue
-
             mask_src, mask_dst = geometry_tools.create_common_region_masks(
                 h_dst_2_src[im_dst_index], im_src_BGR.shape, images_dst_BGR[im_dst_index].shape
             )
 
-            if args.comparison_method == 'src_blur_dst_sharp':
-                pts_src_file = Path(args.results_detection_dir, '{}/blur_gamma/1.png.kpt.npz'.format(sequence_data['sequence_name']))
-                pts_dst_file =Path(args.results_detection_dir, '{}/sharp/{}.png.kpt.npz'.format(sequence_data['sequence_name'], im_dst_index+1))
-            elif args.comparison_method == 'src_sharp_dst_blur':
-                pts_src_file = Path(args.results_detection_dir, '{}/sharp/1.png.kpt.npz'.format(sequence_data['sequence_name']))
-                pts_dst_file =Path(args.results_detection_dir, '{}/blur_gamma/{}.png.kpt.npz'.format(sequence_data['sequence_name'], im_dst_index+1))
-            elif args.comparison_method == 'src_blur_dst_blur':
-                pts_src_file = Path(args.results_detection_dir, '{}/blur_gamma/1.png.kpt.npz'.format(sequence_data['sequence_name']))
-                pts_dst_file =Path(args.results_detection_dir, '{}/blur_gamma/{}.png.kpt.npz'.format(sequence_data['sequence_name'], im_dst_index+1))
-            elif args.comparison_method == 'src_blur_dst_blur_diff':
-                pts_src_file = Path(args.results_detection_dir, '{}/blur_gamma/1.png.kpt.npz'.format(sequence_data['sequence_name']))
-                pts_dst_file =Path(args.results_detection_dir, '{}/blur_diff/{}.png.kpt.npz'.format(sequence_data['sequence_name'], im_dst_index+1))
-
+            pts_src_file = Path(args.results_detection_dir, '{}/{}/1.ppm.kpt.npz'.format(sequence_data['sequence_name'], args.deblur_method))
+            pts_dst_file =Path(args.results_detection_dir, '{}/{}/{}.ppm.kpt.npz'.format(sequence_data['sequence_name'], args.deblur_method, im_dst_index+2))
 
             if not pts_src_file.exists():
                 logger.info("Could not find the file: " + str(pts_src_file))
-                counter_fail_extraction += 1
                 continue
 
             if not pts_dst_file.exists():
                 logger.info("Could not find the file: " + str(pts_dst_file))
-                counter_fail_extraction += 1
                 continue
 
 
@@ -152,12 +116,12 @@ def gopro_metrics():
                 test_utils.plot_imgs(
                     [detection_im_src_BGR.astype(np.uint8), detection_im_dst_BGR.astype(np.uint8)],
                     titles=['src pts: {}/{}'.format(len(pts_src),src_pts_raw_num), 'dst pts: {}/{}'.format(len(pts_dst),dst_pts_raw_num)], dpi=150)
-                plt.suptitle('{} - {} {} / {} - {}, rep_s {:.2f}, min_features {:d}, matches {:d}'.format(
-                    args.results_detection_dir.split('/')[1], sequence_name, counter_sequences, len(dataloader.sequences), im_dst_index,
+                plt.suptitle('{} {} / {} - {}, rep_s {:.2f}, min_features {:d}, matches {:d}'.format(
+                    sequence_name, counter_sequences, len(dataloader.sequences), im_dst_index,
                     repeatability_results['rep_single_scale'], repeatability_results['total_num_points'], repeatability_results['possible_matches']))
 
                 plt.tight_layout()
-                vis_file = str(visualization_dir)+'/'+sequence_name+'_'+str(im_dst_index+1)+'.png'
+                vis_file = str(visualization_dir)+'/'+sequence_name+'_'+str(im_dst_index+2)+'.png'
                 plt.savefig(vis_file, dpi=150, bbox_inches='tight')
 
 
@@ -212,10 +176,9 @@ def gopro_metrics():
            #### Overlap Multi: {5:.4f}\n \
            #### Overlap Single: {6:.4f}\n \
            #### Num Feats: {7:.4f}\n \
-           #### Num Matches: {8:.4f}\n \
-           #### Num Detection Fail: {9:d}'.format(
+           #### Num Matches: {8:.4f}'.format(
            args.overlap, args.top_k_points, args.pixel_threshold,
-           rep_multi, rep_single, error_overlap_s, error_overlap_m, num_features, num_matches, counter_fail_extraction
+           rep_multi, rep_single, error_overlap_s, error_overlap_m, num_features, num_matches
     ))
 
     metrics_file = Path(output_dir, 'metrics')
@@ -223,4 +186,4 @@ def gopro_metrics():
 
 
 if __name__ == '__main__':
-    gopro_metrics()
+    hsequences_metrics()

@@ -132,53 +132,6 @@ from benchmark_test import geometry_tools, repeatability_tools
 '''
 
 
-def extract_blur_diff_features(image_RGB_norm, model, device, args, is_debugging=False):
-    height_RGB_norm, width_RGB_norm = image_RGB_norm.shape[0], image_RGB_norm.shape[1]
-    
-    image_even = dataset_utils.make_shape_even(image_RGB_norm)
-    height_even, width_even = image_even.shape[0], image_even.shape[1]
-    
-    image_pad = dataset_utils.mod_padding_symmetric(image_even, factor=64)
-    
-
-    image_pad_tensor = torch.tensor(image_pad, dtype=torch.float32)
-    image_pad_tensor = image_pad_tensor.permute(2, 0, 1)
-    image_pad_batch = image_pad_tensor.unsqueeze(0)
-
-    t0 = time.time()
-    output_pad_batch = model(image_pad_batch.to(device))
-    t1 = time.time()
-    extract_time = t1-t0
-
-    # elif args.nms == 'nms_fast':
-    score_map_pad_batch = output_pad_batch['prob']
-    score_map_pad_np = score_map_pad_batch[0, :, :].cpu().detach().numpy()
-
-    # unpad images to get the original resolution
-    new_height, new_width = score_map_pad_np.shape[0], score_map_pad_np.shape[1]
-    h_start = new_height // 2 - height_even // 2
-    h_end = h_start + height_RGB_norm
-    w_start = new_width // 2 - width_even // 2
-    w_end = w_start + width_RGB_norm
-    score_map = score_map_pad_np[h_start:h_end, w_start:w_end]
-
-
-    score_map_remove_border = geometry_tools.remove_borders(score_map, borders=args.border_size)
-
-    ## method 1 for keypoints
-    score_map_nms = repeatability_tools.apply_nms(score_map_remove_border, args.nms_size)
-
-    pts = geometry_tools.get_point_coordinates(score_map_nms, num_points=args.num_points, order_coord='xysr')
-
-    if pts.size == 0:
-        return None, None
-
-    pts_sorted = pts[(-1 * pts[:, 3]).argsort()]
-    pts_output = pts_sorted[:args.num_points]
-
-    return pts_output, extract_time # pts_output.shape: N*4
-
-
 def extract_features(image_RGB_norm, model, device, args, is_debugging=False):
     height_RGB_norm, width_RGB_norm = image_RGB_norm.shape[0], image_RGB_norm.shape[1]
     
@@ -229,29 +182,9 @@ def extract_features(image_RGB_norm, model, device, args, is_debugging=False):
 
 
 def main():
-    args, cfg = config_hpatches.parse_config()
+    args, cfg = config_hpatches.parse_deblur_config()
 
-    hsequences_list_dir = args.hsequences_list_file.split('/')[-2]
-    hsequences_list_file = args.hsequences_list_file.split('/')[-1]
     start_time = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-
-    if args.comparison_method == 'src_sharp_dst_sharp':
-        args.results_detection_dir = 'results_hsequences_src_sharp_dst_sharp_detection'
-    elif args.comparison_method == 'src_sharp_dst_blur':
-        args.results_detection_dir = 'results_hsequences_src_sharp_dst_blur_detection'
-    elif args.comparison_method == 'src_blur_dst_sharp':
-        args.num_points = 3000
-        args.results_detection_dir = 'results_hsequences_src_blur_dst_sharp_detection'
-    elif args.comparison_method == 'src_blur_dst_blur':
-        args.top_k_points = 3000
-        args.results_detection_dir = 'results_hsequences_src_blur_dst_blur_detection'
-    elif args.comparison_method == 'src_blur_dst_blur_diff':
-        args.num_points = 3000
-        args.results_detection_dir = 'results_hsequences_src_blur_dst_blur_diff_detection'
-
-    assert(hsequences_list_dir[11:-5] == args.comparison_method)
-    assert(hsequences_list_file[11:-9] in args.exper_name)
-
     output_dir = Path(args.results_detection_dir, args.exper_name, start_time)
     common_utils.check_directory(output_dir)
     detection_output_dir = output_dir / 'detection'
@@ -270,9 +203,8 @@ def main():
         logger.info('Extract detections in the resized image with {} for repeatability test.'.format(cfg['resize_image']))
 
     total_time = []
-    counter_fail_extraction = 0
     
-    list_file = open(args.hsequences_list_file, 'r')
+    list_file = open(args.deblur_hsequences_list_file, 'r')
     images_list = sorted(list_file.readlines())
     iterate = tqdm(images_list, total=len(images_list), desc="Motion Blur Detection")
 
@@ -284,11 +216,10 @@ def main():
             print('[ERROR]: File {0} not found!'.format(image_path))
             return
 
-        # if 'i_dc' in image_path and args.nms == 'box_nms':
-        #     continue
+        if 'i_dc' in image_path and args.nms == 'box_nms':
+            continue
 
-        logger.info("================ Strat Extractiton ================ ")
-        logger.info('Read image from path: {}'.format(image_path))     
+        logger.info('\nRead image from path: {}'.format(image_path))     
 
         image_BGR = dataset_utils.read_bgr_image(str(image_path))
         logger.info('Raw image_BGR size: {}'.format(image_BGR.shape))
@@ -308,19 +239,11 @@ def main():
             plt.show()
 
         with torch.no_grad():
-            if args.comparison_method == 'src_blur_dst_blur_diff' or args.comparison_method == 'src_blur_dst_sharp' or args.comparison_method == 'src_blur_dst_blur':
-                image_pts, extract_time = extract_blur_diff_features(image_RGB_norm, model, device, args)
-            else:
-                image_pts, extract_time = extract_features(image_RGB_norm, model, device, args)
+            image_pts, extract_time = extract_features(image_RGB_norm, model, device, args)
 
         if image_pts is None and extract_time is None:
             logger.info('No kpts in {}'.format(path_to_image.rstrip('\n')))
-            counter_fail_extraction += 1
             continue
-
-        if 'blur' in image_path:
-            image_path = image_path.replace('/blur_diff', '')
-            image_path = image_path.replace('/result', '')
 
         logger.info('Save image path: {}'.format(image_path))
 
@@ -335,11 +258,9 @@ def main():
 
         total_time.append(extract_time)
 
-        logger.info('{} kpts saved in {}, extract_time {:.5f} in image size {}'.format(image_pts.shape, kpt_file, extract_time, image_BGR.shape[:2]))
-        logger.info("================ End Extractiton ================ \n")
+        logger.info('{} kpts saved in {}, extract_time {:.5f} in image size {}\n'.format(image_pts.shape, kpt_file, extract_time, image_BGR.shape[:2]))
 
-    logger.info('\nMean time: {:.5f}, total time: {:.5f} with {} images.'.format(np.array(total_time).mean(), np.array(total_time).sum(), len(np.array(total_time))))
-    logger.info('\n{} images have no keypoints extracted.'.format(counter_fail_extraction))
+    logger.info('\nMean time: {:.5f} with {} images.'.format(np.array(total_time).mean(), len(np.array(total_time))))
 
 if __name__ == '__main__':
     main()

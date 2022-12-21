@@ -45,6 +45,12 @@ class GOPRO_test(object):
             image_src_path = str(sequence_path) + '/blur_gamma/1.png'
         elif self.split == 'src_sharp_dst_blur':
             image_src_path = str(sequence_path) + '/sharp/1.png'
+        elif self.split == 'src_blur_dst_blur':
+            image_src_path = str(sequence_path) + '/blur_gamma/1.png'
+        elif self.split == 'src_blur_dst_blur_diff':
+            image_src_path = str(sequence_path) + '/blur_gamma/1.png'
+
+        print('\n*****src image path: ', image_src_path)
 
         im_src_BGR = dataset_utils.read_bgr_image(image_src_path)
 
@@ -54,10 +60,14 @@ class GOPRO_test(object):
                 image_dst_path = str(sequence_path) + '/sharp/' + str(i+1) + '.png'
             elif self.split == 'src_sharp_dst_blur':
                 image_dst_path = str(sequence_path) + '/blur_gamma/' + str(i+1) + '.png'
+            elif self.split == 'src_blur_dst_blur':
+                image_dst_path = str(sequence_path) + '/blur_gamma/' + str(i+1) + '.png'
+            elif self.split == 'src_blur_dst_blur_diff':
+                image_dst_path = str(sequence_path) + '/blur_diff/' + str(i+1) + '.png'
 
             assert image_src_path.split('/')[-3] == image_dst_path.split('/')[-3]
 
-            print('dst image path: ', image_dst_path)
+            print('*****dst image path: ', image_dst_path)
 
             im_dst_BGR = dataset_utils.read_bgr_image(image_dst_path)
 

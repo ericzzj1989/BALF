@@ -3,7 +3,6 @@ import torch.nn as nn
 import einops
 
 from model.decoder import DetectorHead
-# from model.detection_decoder import DetectorHead
 
 
 def block_images_einops(x, patch_size):
@@ -244,9 +243,9 @@ class Down(nn.Module):
             # x = einops.rearrange(x, "b h w c -> b c h w")
             return x
         
-class MLP_MA_DECODER(nn.Module):
+class Ablation_N_1(nn.Module):
     def __init__(self, model_cfg):
-        super(MLP_MA_DECODER, self).__init__()
+        super(Ablation_N_1, self).__init__()
         en_embed_dims = model_cfg['en_embed_dims']
         grid_size = model_cfg['grid_size']
         block_size = model_cfg['block_size']
@@ -261,26 +260,26 @@ class MLP_MA_DECODER(nn.Module):
             grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
             input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=True
         )
-        self.down2 = Down(en_embed_dims[1],en_embed_dims[2], grid_size=grid_size, block_size=block_size,
-            grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
-            input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=True
-        )
-        self.down3 = Down(en_embed_dims[2],en_embed_dims[3], grid_size=grid_size, block_size=block_size,
-            grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
-            input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=True
-        )
-        self.down4= Down(en_embed_dims[3],en_embed_dims[4], grid_size=grid_size, block_size=block_size,
-            grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
-            input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=False
-        )
+        # self.down2 = Down(en_embed_dims[1],en_embed_dims[2], grid_size=grid_size, block_size=block_size,
+        #     grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
+        #     input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=True
+        # )
+        # self.down3 = Down(en_embed_dims[2],en_embed_dims[3], grid_size=grid_size, block_size=block_size,
+        #     grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
+        #     input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=True
+        # )
+        # self.down4= Down(en_embed_dims[3],en_embed_dims[4], grid_size=grid_size, block_size=block_size,
+        #     grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
+        #     input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=False
+        # )
 
-        self.detector_head = DetectorHead(input_channel=en_embed_dims[4], cell_size=cell_size)
+        self.detector_head = DetectorHead(input_channel=en_embed_dims[1], cell_size=cell_size)
 
     def forward(self, x):
         x = self.down1(x)
-        x = self.down2(x)
-        x = self.down3(x)
-        feat_map = self.down4(x)
+        # x = self.down2(x)
+        # x = self.down3(x)
+        # feat_map = self.down4(x)
         
-        outputs = self.detector_head(feat_map)
+        outputs = self.detector_head(x)
         return outputs

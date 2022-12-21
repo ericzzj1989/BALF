@@ -2,8 +2,7 @@ import torch
 import torch.nn as nn
 import einops
 
-from model.decoder import DetectorHead
-# from model.detection_decoder import DetectorHead
+from model.detection_decoder import DetectorHead
 
 
 def block_images_einops(x, patch_size):
@@ -176,24 +175,24 @@ class ResidualChannelAttentionBlock(nn.Module):
     def __init__(self, in_ch, reduction_factor=4, lrelu_slope=0.2):
         super(ResidualChannelAttentionBlock, self).__init__()
         self.norm = nn.LayerNorm(in_ch)
-        # self.conv1 = nn.Conv2d(in_ch, in_ch, kernel_size=3, stride=1, padding=1)
-        self.conv1 = nn.Linear(in_ch, in_ch)
+        self.conv1 = nn.Conv2d(in_ch, in_ch, kernel_size=3, stride=1, padding=1)
+        # self.conv1 = nn.Linear(in_ch, in_ch)
         self.act = nn.LeakyReLU(negative_slope=lrelu_slope)
-        # self.conv2 = nn.Conv2d(in_ch, in_ch, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Linear(in_ch, in_ch)
+        self.conv2 = nn.Conv2d(in_ch, in_ch, kernel_size=3, stride=1, padding=1)
+        # self.conv2 = nn.Linear(in_ch, in_ch)
         self.calayer = CALayer(in_ch, reduction_factor=reduction_factor)
     
     def forward(self, x):
         shortcut = x ## batch, h, w, num_channels
         x = self.norm(x)
-        # x = x.permute(0, 3, 1, 2)
+        x = x.permute(0, 3, 1, 2)
         # x = einops.rearrange(x, "b h w c -> b c h w")
         x = self.conv1(x)
-        x = x.permute(0, 3, 1, 2)
+        # x = x.permute(0, 3, 1, 2)
         x = self.act(x)
-        x = x.permute(0, 2, 3, 1)
+        # x = x.permute(0, 2, 3, 1)
         x = self.conv2(x)
-        x = x.permute(0, 3, 1, 2)
+        # x = x.permute(0, 3, 1, 2)
         x = self.calayer(x)
         x = x.permute(0, 2, 3, 1)
         # x = einops.rearrange(x, "b c h w -> b h w c")
@@ -215,7 +214,7 @@ class Down(nn.Module):
             out_ch, grid_size, block_size, grid_gmlp_factor=grid_gmlp_factor,
             block_gmlp_factor=block_gmlp_factor, input_proj_factor=input_proj_factor, dropout_rate=0.0
         )
-        self.residual_channel_attention_block = ResidualChannelAttentionBlock(out_ch, reduction_factor=channels_reduction)
+        # self.residual_channel_attention_block = ResidualChannelAttentionBlock(out_ch, reduction_factor=channels_reduction)
         # self.conv_down = nn.Conv2d(out_ch, out_ch, kernel_size=4, stride=2, padding=1)
         self.conv_down = nn.MaxPool2d(2)
         # self.conv2 = nn.Conv2d(out_ch, out_ch, kernel_size=3, stride=1, padding=1)
@@ -228,7 +227,7 @@ class Down(nn.Module):
         shortcut_long = x
         # for i in range(1):
         x = self.residual_split_head_multi_axis_gmlp_layer(x)
-        x = self.residual_channel_attention_block(x)
+        # x = self.residual_channel_attention_block(x)
         # x = einops.rearrange(x, "b h w c -> b c h w")
         x = x + shortcut_long
         x = x.permute(0, 3, 1, 2)
@@ -244,9 +243,9 @@ class Down(nn.Module):
             # x = einops.rearrange(x, "b h w c -> b c h w")
             return x
         
-class MLP_MA_DECODER(nn.Module):
+class Ablation_Conv_RCAB(nn.Module):
     def __init__(self, model_cfg):
-        super(MLP_MA_DECODER, self).__init__()
+        super(Ablation_Conv_RCAB, self).__init__()
         en_embed_dims = model_cfg['en_embed_dims']
         grid_size = model_cfg['grid_size']
         block_size = model_cfg['block_size']
@@ -269,18 +268,18 @@ class MLP_MA_DECODER(nn.Module):
             grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
             input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=True
         )
-        self.down4= Down(en_embed_dims[3],en_embed_dims[4], grid_size=grid_size, block_size=block_size,
-            grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
-            input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=False
-        )
+        # self.down4= Down(en_embed_dims[3],en_embed_dims[4], grid_size=grid_size, block_size=block_size,
+        #     grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
+        #     input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=False
+        # )
 
-        self.detector_head = DetectorHead(input_channel=en_embed_dims[4], cell_size=cell_size)
+        self.detector_head = DetectorHead(input_channel=en_embed_dims[3], cell_size=cell_size)
 
     def forward(self, x):
         x = self.down1(x)
         x = self.down2(x)
         x = self.down3(x)
-        feat_map = self.down4(x)
+        # feat_map = self.down4(x)
         
-        outputs = self.detector_head(feat_map)
+        outputs = self.detector_head(x)
         return outputs

@@ -12,7 +12,7 @@ data:
   GOPRO:
     images_path: data/GOPRO_Large/train/
     sequences_split_path: datasets/GOPRO_sequences_split
-    labels_path: data/GOPRO_raw_ground_truth/train
+    labels_path: data/GOPRO_raw_ground_truth_more_points/train
     patch_size: 256
 
   homographic:
@@ -50,7 +50,7 @@ model:
     lr_clip: 0.0000001
   scheduler:
     name: linear
-    start_epoch: 60 # 50
+    start_epoch: 40 # 50
     min_lr: 0.0000001
     decay_rate: 0.5
   anchor_loss: softmax

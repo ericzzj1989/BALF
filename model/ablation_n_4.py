@@ -2,8 +2,7 @@ import torch
 import torch.nn as nn
 import einops
 
-from model.decoder import DetectorHead
-# from model.detection_decoder import DetectorHead
+from model.detection_decoder import DetectorHead
 
 
 def block_images_einops(x, patch_size):
@@ -244,9 +243,9 @@ class Down(nn.Module):
             # x = einops.rearrange(x, "b h w c -> b c h w")
             return x
         
-class MLP_MA_DECODER(nn.Module):
+class Ablation_N_4(nn.Module):
     def __init__(self, model_cfg):
-        super(MLP_MA_DECODER, self).__init__()
+        super(Ablation_N_4, self).__init__()
         en_embed_dims = model_cfg['en_embed_dims']
         grid_size = model_cfg['grid_size']
         block_size = model_cfg['block_size']
@@ -271,7 +270,7 @@ class MLP_MA_DECODER(nn.Module):
         )
         self.down4= Down(en_embed_dims[3],en_embed_dims[4], grid_size=grid_size, block_size=block_size,
             grid_gmlp_factor=grid_gmlp_factor, block_gmlp_factor=block_gmlp_factor,
-            input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=False
+            input_proj_factor=input_proj_factor, channels_reduction=channels_reduction, downsample=True
         )
 
         self.detector_head = DetectorHead(input_channel=en_embed_dims[4], cell_size=cell_size)

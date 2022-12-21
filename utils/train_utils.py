@@ -125,12 +125,14 @@ def train_model(
         src_anchor_loss = loss_function.detector_loss(
             keypoint_map=heatmap_src_patch,
             logits=src_outputs['logits'],
-            device=device
+            device=device,
+            grid_size=16
         )
         dst_anchor_loss = loss_function.detector_loss(
             keypoint_map=heatmap_dst_patch,
             logits=dst_outputs['logits'],
-            device=device
+            device=device,
+            grid_size=16
         )
 
 
@@ -196,49 +198,49 @@ def train_model(
             tb_log.add_image('train_src_output_heatmap', src_outputs_score_maps_grid, cur_epoch)
             tb_log.add_image('train_dst_output_heatmap', dst_outputs_score_maps_grid, cur_epoch)
 
-        if output_dir is not None and idx % 20 == 0:
-            feature_map_dir = str(output_dir) + '/feature_map/'
+        # if output_dir is not None and idx % 20 == 0:
+        #     feature_map_dir = str(output_dir) + '/feature_map/'
 
-            feature_map_list = glob.glob(feature_map_dir + '/*.png')
-            feature_map_list.sort(key=os.path.getmtime)
+        #     feature_map_list = glob.glob(feature_map_dir + '/*.png')
+        #     feature_map_list.sort(key=os.path.getmtime)
 
-            if feature_map_list.__len__() >= 1600:
-                for cur_file_idx in range(0, len(feature_map_list) - 1600 + 1):
-                    os.remove(feature_map_list[cur_file_idx])
+        #     if feature_map_list.__len__() >= 1600:
+        #         for cur_file_idx in range(0, len(feature_map_list) - 1600 + 1):
+        #             os.remove(feature_map_list[cur_file_idx])
 
-            post_fix = 'epoch'+str(cur_epoch)+'_'+'iter'+str(idx)
+        #     post_fix = 'epoch'+str(cur_epoch)+'_'+'iter'+str(idx)
 
-            output1 = src_outputs['prob'].unsqueeze(1).detach()
-            output2 = dst_outputs['prob'].unsqueeze(1).detach()
-            deep_src = common_utils.remove_borders(output1, 16).cpu().detach().numpy()
-            deep_dst = common_utils.remove_borders(output2, 16).cpu().detach().numpy()
+        #     output1 = src_outputs['prob'].unsqueeze(1).detach()
+        #     output2 = dst_outputs['prob'].unsqueeze(1).detach()
+        #     deep_src = common_utils.remove_borders(output1, 16).cpu().detach().numpy()
+        #     deep_dst = common_utils.remove_borders(output2, 16).cpu().detach().numpy()
 
-            common_utils.check_directory(feature_map_dir)
+        #     common_utils.check_directory(feature_map_dir)
 
-            import matplotlib.pyplot as plt
-            fig = plt.figure()
-            rows, cols = 2, 2
-            ax1 = fig.add_subplot(rows, cols, 1)
-            ax1.imshow(images_src_batch[0,:,:,:].permute(1, 2, 0).cpu().detach().numpy())
-            ax1.set_title('image_src_' + post_fix)
-            ax1.axis("off")
+        #     import matplotlib.pyplot as plt
+        #     fig = plt.figure()
+        #     rows, cols = 2, 2
+        #     ax1 = fig.add_subplot(rows, cols, 1)
+        #     ax1.imshow(images_src_batch[0,:,:,:].permute(1, 2, 0).cpu().detach().numpy())
+        #     ax1.set_title('image_src_' + post_fix)
+        #     ax1.axis("off")
 
-            ax2 = fig.add_subplot(rows, cols, 2)
-            ax2.imshow(deep_src[0,0,:,:] / deep_src[0,0,:,:].max(), cmap='gray')
-            ax2.set_title('feature_map_src_' + post_fix)
-            ax2.axis("off")
+        #     ax2 = fig.add_subplot(rows, cols, 2)
+        #     ax2.imshow(deep_src[0,0,:,:] / deep_src[0,0,:,:].max(), cmap='gray')
+        #     ax2.set_title('feature_map_src_' + post_fix)
+        #     ax2.axis("off")
 
-            ax3 = fig.add_subplot(rows, cols, 3)
-            ax3.imshow(images_dst_batch[0,:,:,:].permute(1, 2, 0).cpu().detach().numpy())
-            ax3.set_title('image_dst_' + post_fix)
-            ax3.axis("off")
+        #     ax3 = fig.add_subplot(rows, cols, 3)
+        #     ax3.imshow(images_dst_batch[0,:,:,:].permute(1, 2, 0).cpu().detach().numpy())
+        #     ax3.set_title('image_dst_' + post_fix)
+        #     ax3.axis("off")
 
-            ax4 = fig.add_subplot(rows, cols, 4)
-            ax4.imshow(deep_dst[0,0,:,:] / deep_dst[0,0,:,:].max(), cmap='gray')
-            ax4.set_title('feature_map_dst_' + post_fix)
-            ax4.axis("off")
+        #     ax4 = fig.add_subplot(rows, cols, 4)
+        #     ax4.imshow(deep_dst[0,0,:,:] / deep_dst[0,0,:,:].max(), cmap='gray')
+        #     ax4.set_title('feature_map_dst_' + post_fix)
+        #     ax4.axis("off")
 
-            fig.savefig(str(feature_map_dir + post_fix + '.png'))
+        #     fig.savefig(str(feature_map_dir + post_fix + '.png'))
 
             # cv2.imwrite(str(feature_map_dir + 'image_src_' + post_fix + '.png'), 255 * images_src_batch[0,:,:,:].permute(1, 2, 0).cpu().detach().numpy())
             # cv2.imwrite(str(feature_map_dir + 'feature_map_src_' + post_fix + '.png'), 255 * deep_src[0,0,:,:] / deep_src[0,0,:,:].max())

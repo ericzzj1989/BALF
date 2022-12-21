@@ -14,6 +14,27 @@ from benchmark_test import test_utils, geometry_tools, repeatability_tools
 def hsequences_metrics():
     args = config_hpatches.parse_eval_config()
 
+    results_detection_path = args.results_detection_dir.split('/')
+    if args.comparison_method == 'src_blur_dst_sharp':
+        args.top_k_points = 3000
+        args.results_bench_dir = 'results_hsequences_src_blur_dst_sharp_bench/'
+    elif args.comparison_method == 'src_blur_dst_blur':
+        args.top_k_points = 3000
+        args.results_bench_dir = 'results_hsequences_src_blur_dst_blur_bench/'
+    elif args.comparison_method == 'src_sharp_dst_sharp':
+        args.results_bench_dir = 'results_hsequences_src_sharp_dst_sharp_bench/'
+    elif args.comparison_method == 'src_sharp_dst_blur':
+        args.results_bench_dir = 'results_hsequences_src_sharp_dst_blur_bench/'
+    elif args.comparison_method == 'src_blur_dst_blur_diff':
+        args.top_k_points = 3000
+        args.results_bench_dir = 'results_hsequences_src_blur_dst_blur_diff_bench/'
+        # assert(results_detection_path[1][-9:] == args.comparison_method[-9:])
+        assert(results_detection_path[-1][-9:] == args.comparison_method[-9:])
+    
+    assert(results_detection_path[0][19:-10] == args.comparison_method)
+    assert(args.data_dir.split('/')[-1] == results_detection_path[-1])
+    
+
     print('Evaluate {} sequences'.format(args.split))
     common_utils.check_directory(args.results_bench_dir)
     start_time = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
@@ -26,10 +47,15 @@ def hsequences_metrics():
         visualization_dir = Path(output_dir, 'visualization_detection')
         common_utils.check_directory(visualization_dir)
 
-    dataloader = HSequences.HSequences(args.data_dir, args.split, args.split_path)
+    dataloader = HSequences.HSequences(args.data_dir, args.split, args.split_path, args.comparison_method)
     metrics_results = test_utils.create_metrics_results(args.split, args.top_k_points, args.overlap, args.pixel_threshold)
 
     counter_sequences = 0
+    counter_fail_extraction = 0
+    viewpoint_rep_s = []
+    illumination_rep_s = []
+    viewpoint_rep_m = []
+    illumination_rep_m = []
     iterate = tqdm(range(len(dataloader.sequences)), total=len(dataloader.sequences), desc="HSequences Eval")
 
     # for sequence_index in tqdm(range
@@ -56,10 +82,12 @@ def hsequences_metrics():
 
             if not pts_src_file.exists():
                 logger.info("Could not find the file: " + str(pts_src_file))
+                counter_fail_extraction += 1
                 continue
 
             if not pts_dst_file.exists():
                 logger.info("Could not find the file: " + str(pts_dst_file))
+                counter_fail_extraction += 1
                 continue
 
 
@@ -142,14 +170,23 @@ def hsequences_metrics():
             metrics_results['num_matches'].append(
                 repeatability_results['possible_matches'])
 
+            if sequence_name[0] == 'v':
+                viewpoint_rep_s.append(repeatability_results['rep_single_scale'])
+                viewpoint_rep_m.append(repeatability_results['rep_multi_scale'])
+            elif sequence_name[0] == 'i':
+                illumination_rep_s.append(repeatability_results['rep_single_scale'])
+                illumination_rep_m.append(repeatability_results['rep_multi_scale'])
+
             ## logging
-            iterate.set_description("{}  {} / {} - {} rep_s {:.2f} , rep_m {:.2f}, p_s {:d} , p_m {:d}, eps_s {:.2f}, eps_m {:.2f}, min_features {:d}, matches {:d}, avg rep_s: {:0.4f}"
+            iterate.set_description("{}  {} / {} - {} rep_s {:.2f}, p_s {:d}, min_features {:d}, avg rep_s: {:0.4f}, v_rep_s: {:0.4f}, i_rep_s: {:0.4f}"
                 .format(
                     sequence_name, counter_sequences, len(dataloader.sequences), im_dst_index,
-                    repeatability_results['rep_single_scale'], repeatability_results['rep_multi_scale'], repeatability_results['num_points_single_scale'], 
-                    repeatability_results['num_points_multi_scale'], repeatability_results['error_overlap_single_scale'],
-                    repeatability_results['error_overlap_multi_scale'], repeatability_results['total_num_points'], repeatability_results['possible_matches'],
-                    np.array(metrics_results['rep_single_scale']).mean()
+                    repeatability_results['rep_single_scale'],
+                    repeatability_results['num_points_single_scale'], 
+                    repeatability_results['total_num_points'],
+                    np.array(metrics_results['rep_single_scale']).mean(),
+                    np.array(viewpoint_rep_s).mean(),
+                    np.array(illumination_rep_s).mean()
             ))
             logger.info("{} {} / {} - {} src_num: {:d}/{:d} dst_num: {:d}/{:d} rep_s {:.2f} , rep_m {:.2f}, p_s {:d} , p_m {:d}, eps_s {:.2f}, eps_m {:.2f}, min_features {:d}, matches {:d}"
                 .format(
@@ -166,23 +203,37 @@ def hsequences_metrics():
     error_overlap_m = np.array(metrics_results['error_overlap_multi_scale']).mean()
     num_features = np.array(metrics_results['num_features']).mean()
     num_matches = np.array(metrics_results['num_matches']).mean()
-
+    v_rep_single = np.array(viewpoint_rep_s).mean()
+    i_rep_single = np.array(illumination_rep_s).mean()
+    v_rep_multi = np.array(viewpoint_rep_m).mean()
+    i_rep_multi = np.array(illumination_rep_m).mean()
 
     logger.info('\n## Overlap @{0}:\n \
            ## top_k @{1}:\n \
            ## pixel_threshold @{2}:\n \
-           #### Rep. Multi: {3:.4f}\n \
-           #### Rep. Single: {4:.4f}\n \
-           #### Overlap Multi: {5:.4f}\n \
-           #### Overlap Single: {6:.4f}\n \
-           #### Num Feats: {7:.4f}\n \
-           #### Num Matches: {8:.4f}'.format(
+           #### V Rep. Multi: {3:.4f}\n \
+           #### I Rep. Multi: {4:.4f}\n \
+           #### Rep. Multi: {5:.4f}\n \
+           #### Viewpoint Rep. Single: {6:.4f}\n \
+           #### Illumination Rep. Single: {7:.4f}\n \
+           #### Total Repeatabilty. Single: {8:.4f}\n \
+           #### Overlap Multi: {9:.4f}\n \
+           #### Overlap Single: {10:.4f}\n \
+           #### Num Feats: {11:.4f}\n \
+           #### Num Matches: {12:.4f}\n \
+           #### Num Detection Fail: {13:d}'.format(
            args.overlap, args.top_k_points, args.pixel_threshold,
-           rep_multi, rep_single, error_overlap_s, error_overlap_m, num_features, num_matches
+           v_rep_multi, i_rep_multi, rep_multi, v_rep_single, i_rep_single, rep_single, error_overlap_m,
+           error_overlap_s, num_features, num_matches, counter_fail_extraction
     ))
+    logger.info('\nexper_name: {}'.format(args.results_detection_dir.split('/')[1]))
+
 
     metrics_file = Path(output_dir, 'metrics')
-    np.savez(metrics_file, rep_single=rep_single, rep_multi=rep_multi, error_overlap_s=error_overlap_s, error_overlap_m=error_overlap_m, num_features=num_features)
+    np.savez(metrics_file, rep_single=rep_single, rep_multi=rep_multi,\
+        error_overlap_s=error_overlap_s, error_overlap_m=error_overlap_m,\
+        num_features=num_features, v_rep_single=v_rep_single, i_rep_single=i_rep_single,\
+        v_rep_multi=v_rep_multi, i_rep_multi=i_rep_multi)
 
 
 if __name__ == '__main__':

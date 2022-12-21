@@ -185,9 +185,25 @@ def extract_features(image_RGB_norm, model, device, args, is_debugging=False):
 def main():
     args, cfg = config_gopro_eval.parse_config()
 
-    start_time = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    if args.split == 'src_sharp_dst_blur':
+    assert(args.comparison_method in args.exper_name)
+    assert(args.comparison_method in args.gopro_list_file)
+
+    if args.comparison_method == 'src_sharp_dst_blur':
         args.results_detection_dir = 'results_gopro_src_sharp_dst_blur_detection'
+    elif args.comparison_method == 'src_blur_dst_sharp':
+        args.num_points = 2000
+        args.nms = 'apply_nms'
+        args.results_detection_dir = 'results_gopro_src_blur_dst_sharp_detection'
+    elif args.comparison_method == 'src_blur_dst_blur':
+        args.num_points = 2000
+        args.nms = 'apply_nms'
+        args.results_detection_dir = 'results_gopro_src_blur_dst_blur_detection'
+    elif args.comparison_method == 'src_blur_dst_blur_diff':
+        args.num_points = 3000
+        args.nms = 'apply_nms'
+        args.results_detection_dir = 'results_gopro_src_blur_dst_blur_diff_detection'
+
+    start_time = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     output_dir = Path(args.results_detection_dir, args.exper_name, start_time)
     common_utils.check_directory(output_dir)
     detection_output_dir = output_dir / 'detection'
@@ -206,6 +222,7 @@ def main():
         logger.info('Extract detections in the resized image with {} for repeatability test.'.format(cfg['resize_image']))
 
     total_time = []
+    counter_fail_extraction = 0
     
     list_file = open(args.gopro_list_file, 'r')
     images_list = sorted(list_file.readlines())
@@ -219,7 +236,8 @@ def main():
             print('[ERROR]: File {0} not found!'.format(image_path))
             return
 
-        logger.info('\nRead image from path: {}'.format(image_path))     
+        logger.info("================ Strat Extractiton ================ ")
+        logger.info('Read image from path: {}'.format(image_path))     
 
         image_BGR = dataset_utils.read_bgr_image(str(image_path))
         logger.info('Raw image_BGR size: {}'.format(image_BGR.shape))
@@ -243,9 +261,10 @@ def main():
 
         if image_pts is None and extract_time is None:
             logger.info('No kpts in {}'.format(path_to_image.rstrip('\n')))
+            counter_fail_extraction += 1
             continue
 
-        logger.info('Save image path: {}\n'.format(image_path))
+        logger.info('Save image path: {}'.format(image_path))
 
         save_pts_dir = Path(detection_output_dir, image_path)
         common_utils.create_result_dir(str(save_pts_dir))
@@ -258,9 +277,11 @@ def main():
 
         total_time.append(extract_time)
 
-        logger.info('{} kpts saved in {}, extract_time {:.5f} in image size {}\n'.format(image_pts.shape, kpt_file, extract_time, image_BGR.shape[:2]))
+        logger.info('{} kpts saved in {}, extract_time {:.5f} in image size {}'.format(image_pts.shape, kpt_file, extract_time, image_BGR.shape[:2]))
+        logger.info("================ End Extractiton ================ \n")
 
-    logger.info('\nMean time: {:.5f} with {} images.'.format(np.array(total_time).mean(), len(np.array(total_time))))
+    logger.info('\nMean time: {:.5f}, total time: {:.5f} with {} images.'.format(np.array(total_time).mean(), np.array(total_time).sum(), len(np.array(total_time))))
+    logger.info('\n{} images have no keypoints extracted.'.format(counter_fail_extraction))
 
 if __name__ == '__main__':
     main()
