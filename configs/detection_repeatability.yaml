@@ -1,5 +1,5 @@
 model:
-  name: mlp_ma_decoder # mlp_ma_decoder, ablation_conv_rcab
+  name: mlp_ma_decoder
   network_architecture:
     en_embed_dims: [3,32,64,128,256]
     grid_size: [8,8]

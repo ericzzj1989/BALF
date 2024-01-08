@@ -3,7 +3,6 @@ import torch.nn as nn
 import einops
 
 from model.decoder import DetectorHead
-# from model.detection_decoder import DetectorHead
 
 
 def block_images_einops(x, patch_size):
