@@ -38,7 +38,7 @@ If you find our code or paper useful, please cite
 * [x] Release the training code.
 * [x] Release the testing code.
 * [ ] Add installation and usage guidance.
-* [ ] Release the Blur-HPatcehs dataset.
+* [ ] Release the Blur-HPatches dataset.
 * [ ] Release the model checkpoint.
 
 
