@@ -1,6 +1,5 @@
 <p align="center">
-
-  <h1 align="center">BALF: Simple and Efficient Blur Aware Local Feature Detector</h1>
+  <h1 align="center"> <ins>BALF</ins> <br>Simple and Efficient Blur Aware Local Feature Detector<br> 3DV 2024 Oral</h1>
   <p align="center">
     <a href="https://ericzzj1989.github.io/"><strong>Zhenjun Zhao</strong></a>
   </p>
