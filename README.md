@@ -18,6 +18,9 @@ BALF is able to detect well localized and repeatable keypoints from both sharp a
 </p>
 <br>
 
+## Acknowledgement
+The author thanks <a href="https://ethliup.github.io/">Peidong Liu</a> and <a href="http://www.mae.cuhk.edu.hk/~bmchen">Ben M. Chen</a> for supporting.
+
 ## Citation
 
 If you find our code or paper useful, please cite
