@@ -9,7 +9,7 @@
 </p>
 <p align="center">
   <a href="">
-    <img src="./media/teaser" alt="Logo" width="80%">
+    <img src="./media/teaser.png" alt="Logo" width="80%">
   </a>
 </p>
 <p align="center">
