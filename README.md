@@ -39,7 +39,7 @@ If you find our code or paper useful, please cite
 * [x] Release the testing code.
 * [ ] Add installation and usage guidance.
 * [ ] Release the Blur-HPatches dataset.
-* [ ] Release the model checkpoint.
+* [x] Release the model checkpoint.
 
 
 ## Contact
