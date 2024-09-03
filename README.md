@@ -1,28 +1,54 @@
 <p align="center">
-  <h1 align="center"> <ins>BALF</ins> <br>Simple and Efficient Blur Aware Local Feature Detector</h1>
+  <h1 align="center"> <ins>BALF</ins> ⚡<br>Simple and Efficient Blur Aware Local Feature Detector</h1>
+  <h3 align="center">WACV 2024</h3>
   <p align="center">
-    <a href="https://ericzzj1989.github.io/"><strong>Zhenjun Zhao</strong></a>
+    <span class="author-block">
+      <a href="https://ericzzj1989.github.io/">Zhenjun Zhao</a>
+    </span>&nbsp;&nbsp;&nbsp;&nbsp;
   </p>
-  <h2 align="center">WACV 2024</h2>
-  <h3 align="center"><a href="https://arxiv.org/abs/2211.14731">Paper</a> | <a href="https://youtu.be/pSn80SS9mTM?si=fJPbDiHtIMrqiqSV">Video</a> | <a href="https://ericzzj1989.github.io/balf">Project Page</a></h3>
-  <div align="center"></div>
+
+  <div align="center">
+      <a href="https://arxiv.org/abs/2211.14731"><img src='https://img.shields.io/badge/arXiv-2211.14731-b31b1b.svg'></a>  
+      <a href="https://ericzzj1989.github.io/balf"><img src='https://img.shields.io/badge/Project-Page-Green'></a>  
+  </div>
+
 </p>
+
 <p align="center">
-  <a href="">
-    <img src="./media/teaser.png" alt="Logo" width="80%">
+  <a href="https://arxiv.org/abs/2211.14731">
+    <img src="./media/teaser.png" alt="Logo" width=80%>
   </a>
+  <br>
+  <em>BALF is able to detect well localized and repeatable keypoints from both sharp and blurred images.</em>
 </p>
-<p align="center">
-BALF is able to detect well localized and repeatable keypoints from both sharp and blurred images.
-</p>
-<br>
+
+##
+
+## TODO List
+
+- [x] Release the training code.
+- [x] Release the testing code.
+- [x] Release the model checkpoint.
+- [ ] Add installation and usage guidance.
+- [ ] Release the Blur-HPatches dataset.
+
+## Installation
+
+Install this repo using pip:
+
+```bash
+git clone https://github.com/ericzzj1989/BALF.git && cd BALF
+python -m pip install -e .
+```
 
 ## Acknowledgement
+
 The author thanks <a href="https://ethliup.github.io/">Peidong Liu</a> and <a href="http://www.mae.cuhk.edu.hk/~bmchen">Ben M. Chen</a> for supporting.
 
 ## Citation
 
-If you find our code or paper useful, please cite
+If you find this code or paper useful, please cite:
+
 ```bibtex
 @InProceedings{Zhao_2024_WACV,
     author    = {Zhao, Zhenjun},
@@ -33,14 +59,6 @@ If you find our code or paper useful, please cite
     pages     = {3362-3372}
 }
 ```
-
-### ToDo-List
-* [x] Release the training code.
-* [x] Release the testing code.
-* [ ] Add installation and usage guidance.
-* [ ] Release the Blur-HPatches dataset.
-* [x] Release the model checkpoint.
-
 
 ## Contact
 Contact [Zhenjun Zhao](mailto:ericzzj89@gmail.com) for questions, comments and reporting bugs.
