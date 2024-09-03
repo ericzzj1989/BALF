@@ -41,7 +41,7 @@ git clone https://github.com/ericzzj1989/BALF.git && cd BALF
 python -m pip install -e .
 ```
 
-## Acknowledgement
+## Acknowledgments
 
 The author thanks <a href="https://ethliup.github.io/">Peidong Liu</a> and <a href="http://www.mae.cuhk.edu.hk/~bmchen">Ben M. Chen</a> for supporting.
 
