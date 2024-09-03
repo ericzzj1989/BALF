@@ -6,12 +6,12 @@ from pathlib import Path
 import torch
 from tensorboardX import SummaryWriter
 
-from configs import config
-from utils import common_utils, train_utils
-from utils.logger import logger
-from datasets import create_dataloader
-from model import get_model
-from loss import loss_function
+from .configs import config
+from .utils import common_utils, train_utils
+from .utils.logger import logger
+from .datasets import create_dataloader
+from .model import get_model
+from .loss import loss_function
 
 
 # Basic setting

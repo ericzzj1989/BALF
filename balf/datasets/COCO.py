@@ -3,8 +3,8 @@ import numpy as np
 from pathlib import Path
 import torch
 
-from datasets import dataset_utils
-from datasets import base_dataset 
+from ..datasets import dataset_utils
+from ..datasets import base_dataset 
 
 class COCO(base_dataset.base_dataset):
     def get_image_paths(self):

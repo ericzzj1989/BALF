@@ -1,5 +1,5 @@
 import argparse
-from utils import common_utils
+from ..utils import common_utils
 import numpy as np
 
 
@@ -7,7 +7,7 @@ def parse_config():
     parser = argparse.ArgumentParser(description='hsequences detection extraction')
 
     parser.add_argument('--exper_name', type=str, required=True)
-    parser.add_argument('--test_cfg_file', type=str, default='configs/detection_repeatability.yaml')
+    parser.add_argument('--test_cfg_file', type=str, default='balf/configs/detection_repeatability.yaml')
     parser.add_argument('--results_detection_dir', type=str, default='results_hsequences_src_sharp_dst_sharp_detection',
                         help='Path for saving extraction results')
     parser.add_argument('--ckpt_file', type=str, 

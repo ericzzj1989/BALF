@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 import json
 
-from datasets import dataset_utils
+from ..datasets import dataset_utils
 
 class Resize_HSequences(object):
     

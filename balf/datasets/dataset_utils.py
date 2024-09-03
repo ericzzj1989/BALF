@@ -4,7 +4,7 @@ import random
 import torch
 from imgaug import augmenters as iaa
 
-from benchmark_test import repeatability_tools, geometry_tools
+from ..benchmark_test import repeatability_tools, geometry_tools
 
 
 perms = ((0, 1, 2), (0, 2, 1),

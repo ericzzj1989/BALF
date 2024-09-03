@@ -1,0 +1,12 @@
+torch>=1.9.1
+torchvision>=0.3
+torchgeometry>=0.1.2
+numpy>=1.24.4
+opencv-python
+matplotlib
+kornia>=0.6.11
+einops
+tqdm
+pyyaml
+imgaug
+balf @ git+https://github.com/ericzzj1989/BALF.git

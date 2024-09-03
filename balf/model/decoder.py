@@ -1,5 +1,5 @@
 import torch
-from utils import tensor_op
+from ..utils import tensor_op
 
 
 class DetectorHead(torch.nn.Module):

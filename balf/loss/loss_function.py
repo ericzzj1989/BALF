@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from utils import tensor_op
+from ..utils import tensor_op
 # from benchmark_test import geometry_tools, repeatability_tools
 
 '''

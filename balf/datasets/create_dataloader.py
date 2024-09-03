@@ -1,6 +1,6 @@
 from torch.utils.data import DataLoader
 
-from utils.common_utils import get_module
+from ..utils.common_utils import get_module
 
 
 def build_dataloaders(data_cfg, task, is_debugging=False):

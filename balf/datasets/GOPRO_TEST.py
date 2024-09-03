@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 import json
 
-from datasets import dataset_utils
+from ..atasets import dataset_utils
 
 class GOPRO_test(object):
     

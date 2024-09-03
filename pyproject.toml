@@ -1,0 +1,28 @@
+[project]
+name = "balf"
+description = "BALF: Simple and Efficient Blur Aware Local Feature Detector"
+version = "0.0"
+authors = [
+    {name = "Zhenjun Zhao"},
+]
+readme = "README.md"
+requires-python = ">=3.6"
+license = {file = "LICENSE"}
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+urls = { repository = "https://github.com/ericzzj1989/BALF"}
+
+[tool.setuptools]
+packages = ["balf"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.isort]
+profile = "black"
+
+[project.optional-dependencies]
+dev = ["black", "flake8", "isort", "parameterized"]

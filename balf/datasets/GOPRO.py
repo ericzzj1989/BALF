@@ -3,7 +3,7 @@ import logging
 import numpy as np
 from pathlib import Path
 
-from datasets import COCO
+from ..datasets import COCO
 
 
 class GOPRO(COCO.COCO):

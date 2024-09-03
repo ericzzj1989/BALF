@@ -1,5 +1,5 @@
 import argparse
-from utils import common_utils
+from ..utils import common_utils
 
 
 def parse_config():
