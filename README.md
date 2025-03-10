@@ -24,14 +24,6 @@
 
 ##
 
-## TODO List
-
-- [x] Release the training code.
-- [x] Release the testing code.
-- [x] Release the model checkpoint.
-- [x] Add installation and usage guidance.
-- [ ] Release the Blur-HPatches dataset.
-
 ## Installation
 
 Install this repo using pip:
@@ -42,6 +34,7 @@ python -m pip install -e .
 ```
 
 ## Demo
+
 Below we show how BALF, in combination with [HardNet](https://github.com/DagnyT/hardnet), can be used for feature extraction and matching on an image pair. You can also refer to the [demo](demo) for more details.
 
 ```python
@@ -75,6 +68,13 @@ Image.fromarray(demo_match.draw_matches(im_rgb1, matches1, im_rgb2, matches2)).s
 
 ```
 
+## Training BALF  
+
+To train BALF, refer to `train.py` in [balf](balf).  
+
+## Pretrained Models  
+
+Pretrained models are available [here](https://github.com/ericzzj1989/BALF/releases/tag/balf_pretrained_models_v1).  
 
 ## Acknowledgments
 
