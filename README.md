@@ -42,7 +42,8 @@ python -m pip install -e .
 ```
 
 ## Demo
-Below we show how DeDoDe can be run, you can also check out the [demos](demo)
+Below we show how BALF , in combination with [HardNet](https://github.com/DagnyT/hardnet), can be used for feature extraction and matching on an image pair. You can also refer to the [demo](demo) for more details.
+
 ```python
 from balf.utils import test_utils
 from balf.configs import config
