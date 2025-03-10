@@ -42,7 +42,7 @@ python -m pip install -e .
 ```
 
 ## Demo
-Below we show how BALF , in combination with [HardNet](https://github.com/DagnyT/hardnet), can be used for feature extraction and matching on an image pair. You can also refer to the [demo](demo) for more details.
+Below we show how BALF, in combination with [HardNet](https://github.com/DagnyT/hardnet), can be used for feature extraction and matching on an image pair. You can also refer to the [demo](demo) for more details.
 
 ```python
 from balf.utils import test_utils
