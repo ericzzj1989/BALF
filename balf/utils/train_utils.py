@@ -76,8 +76,6 @@ class LinearDecay(optim.lr_scheduler._LRScheduler):
                 base_lr in self.base_lrs]
 
 
-
-
 def train_model(
     cur_epoch, dataloader, model, optimizer, device, tb_log,
     tbar, output_dir=None, cell_size=8, add_dustbin=True,
@@ -101,26 +99,10 @@ def train_model(
 
         tb_log.add_scalar('learning_rate', cur_lr, cur_epoch)
 
-
         model.train()
         
-
         src_outputs  = model(images_src_batch)
         dst_outputs = model(images_dst_batch)
-
-        '''
-        src_input_heatmaps_batch = space_to_depth(heatmap_src_patch, cell_size=cell_size, add_dustbin=add_dustbin)
-        dst_input_heatmaps_batch = space_to_depth(heatmap_dst_patch, cell_size=cell_size, add_dustbin=add_dustbin)
-
-        src_anchor_loss = loss_function.anchor_loss(
-            device=device, input=src_outputs['logits'],
-            target=src_input_heatmaps_batch, loss_type=anchor_loss
-        )
-        dst_anchor_loss = loss_function.anchor_loss(
-            device=device, input=dst_outputs['logits'],
-            target=dst_input_heatmaps_batch, loss_type=anchor_loss
-        )
-        '''
 
         src_anchor_loss = loss_function.detector_loss(
             keypoint_map=heatmap_src_patch,
@@ -134,29 +116,6 @@ def train_model(
             device=device,
             grid_size=16
         )
-
-
-        '''if usp_loss is not None:
-            src_flags = heatmap_flag(heatmap_src_patch, cell_size=cell_size)
-            dst_flags = heatmap_flag(heatmap_dst_patch, cell_size=cell_size)
-            unsuper_loss, unsuper_loss_item = usp_loss.loss(
-                src_outputs_score_batch, dst_outputs_score_batch,
-                src_outputs_pos_batch, dst_outputs_pos_batch,
-                h_src_2_dst_batch, h_dst_2_src_batch,
-                cell_size, src_flags, dst_flags
-            )
-        else:
-            unsuper_loss = torch.tensor(0.0).float().to(device)
-
-        if repeatability_loss is not None:
-            shape_src = images_src_batch.shape[2:]
-            shape_dst = images_dst_batch.shape[2:]
-            rep_loss = repeatability_loss['weight'] * loss_function.repeatability_loss_batch(
-                src_outputs_score_batch, dst_outputs_score_batch, h_dst_2_src_batch, shape_src, shape_dst, cell_size, 15, 25
-            )
-        else:
-            rep_loss = torch.tensor(0.0).float().to(device)'''
-
 
         loss = src_anchor_loss + dst_anchor_loss # + unsuper_loss
 
@@ -176,10 +135,6 @@ def train_model(
             tb_log.add_scalar('total_loss', loss, cur_epoch)
             tb_log.add_scalar('src_anchor_loss', src_anchor_loss, cur_epoch)
             tb_log.add_scalar('dst_anchor_loss', dst_anchor_loss, cur_epoch)
-            # tb_log.add_scalar('unsuper_loss', unsuper_loss, cur_epoch)
-            # tb_log.add_scalar('usp_loss', ussuper_loss_item[0], cur_epoch)
-            # tb_log.add_scalar('uni_loss', ussuper_loss_item[1], cur_epoch)
-            # tb_log.add_scalar('rep_loss', rep_loss, cur_epoch)
 
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
             dst_image_grid = torchvision.utils.make_grid(images_dst_batch)
@@ -197,57 +152,7 @@ def train_model(
             dst_outputs_score_maps_grid = torchvision.utils.make_grid(dst_outputs_score_maps)
             tb_log.add_image('train_src_output_heatmap', src_outputs_score_maps_grid, cur_epoch)
             tb_log.add_image('train_dst_output_heatmap', dst_outputs_score_maps_grid, cur_epoch)
-
-        # if output_dir is not None and idx % 20 == 0:
-        #     feature_map_dir = str(output_dir) + '/feature_map/'
-
-        #     feature_map_list = glob.glob(feature_map_dir + '/*.png')
-        #     feature_map_list.sort(key=os.path.getmtime)
-
-        #     if feature_map_list.__len__() >= 1600:
-        #         for cur_file_idx in range(0, len(feature_map_list) - 1600 + 1):
-        #             os.remove(feature_map_list[cur_file_idx])
-
-        #     post_fix = 'epoch'+str(cur_epoch)+'_'+'iter'+str(idx)
-
-        #     output1 = src_outputs['prob'].unsqueeze(1).detach()
-        #     output2 = dst_outputs['prob'].unsqueeze(1).detach()
-        #     deep_src = common_utils.remove_borders(output1, 16).cpu().detach().numpy()
-        #     deep_dst = common_utils.remove_borders(output2, 16).cpu().detach().numpy()
-
-        #     common_utils.check_directory(feature_map_dir)
-
-        #     import matplotlib.pyplot as plt
-        #     fig = plt.figure()
-        #     rows, cols = 2, 2
-        #     ax1 = fig.add_subplot(rows, cols, 1)
-        #     ax1.imshow(images_src_batch[0,:,:,:].permute(1, 2, 0).cpu().detach().numpy())
-        #     ax1.set_title('image_src_' + post_fix)
-        #     ax1.axis("off")
-
-        #     ax2 = fig.add_subplot(rows, cols, 2)
-        #     ax2.imshow(deep_src[0,0,:,:] / deep_src[0,0,:,:].max(), cmap='gray')
-        #     ax2.set_title('feature_map_src_' + post_fix)
-        #     ax2.axis("off")
-
-        #     ax3 = fig.add_subplot(rows, cols, 3)
-        #     ax3.imshow(images_dst_batch[0,:,:,:].permute(1, 2, 0).cpu().detach().numpy())
-        #     ax3.set_title('image_dst_' + post_fix)
-        #     ax3.axis("off")
-
-        #     ax4 = fig.add_subplot(rows, cols, 4)
-        #     ax4.imshow(deep_dst[0,0,:,:] / deep_dst[0,0,:,:].max(), cmap='gray')
-        #     ax4.set_title('feature_map_dst_' + post_fix)
-        #     ax4.axis("off")
-
-        #     fig.savefig(str(feature_map_dir + post_fix + '.png'))
-
-            # cv2.imwrite(str(feature_map_dir + 'image_src_' + post_fix + '.png'), 255 * images_src_batch[0,:,:,:].permute(1, 2, 0).cpu().detach().numpy())
-            # cv2.imwrite(str(feature_map_dir + 'feature_map_src_' + post_fix + '.png'), 255 * deep_src[0,0,:,:] / deep_src[0,0,:,:].max())
-            # cv2.imwrite(str(feature_map_dir + 'image_dst_' + post_fix + '.png'), 255 * images_dst_batch[0,:,:,:].permute(1, 2, 0).cpu().detach().numpy())
-            # cv2.imwrite(str(feature_map_dir + 'feature_map_dst_' + post_fix + '.png'), 255 * deep_dst[0,0,:,:] / deep_dst[0,0,:,:].max())
             
-
     toc = time.time()
     total_loss_avg = torch.stack(total_loss_avg)
     logging.info('Epoch {} (Training). Loss: {:0.4f}. Time per epoch: {}. \n'.format(cur_epoch, torch.mean(total_loss_avg), round(toc-tic,4)))
@@ -291,243 +196,11 @@ def compute_repeatability_with_maximum_filter(src_scores_np, dst_scores_np, homo
 
     return rep_s_nms, rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms
 
-
-'''
-def build_scheduler(optimizer, total_epochs, last_epoch, optim_cfg):
-    decay_epochs = [x * total_epochs for x in optim_cfg['decay_step_list']]
-    warmip_epoch = optim_cfg['warmup_epoch']
-
-    def lr_lbmd(cur_epoch):
-        cur_decay = 1
-        if cur_epoch < warmip_epoch:
-            # cur_decay = (cur_epoch + 1) * (cur_epoch + 1) / (warmip_epoch * warmip_epoch)
-            cur_decay = (cur_epoch + 1) / warmip_epoch
-
-        for decay_epoch in decay_epochs:
-            if cur_epoch >= decay_epoch:
-                cur_decay = cur_decay * optim_cfg['lr_decay']
-
-        return max(cur_decay, optim_cfg['lr_clip'] / optim_cfg['lr'])
-
-    lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lbmd, last_epoch=last_epoch)
-
-    return lr_scheduler
-'''
-
-
-'''
-class DepthToSpace(torch.nn.Module):
-    def __init__(self, block_size):
-        super(DepthToSpace, self).__init__()
-        self.block_size = block_size
-        self.block_size_sq = block_size*block_size
-
-    def forward(self, input):
-        output = input.permute(0, 2, 3, 1)
-        (batch_size, d_height, d_width, d_depth) = output.size()
-        s_depth = int(d_depth / self.block_size_sq)
-        s_width = int(d_width * self.block_size)
-        s_height = int(d_height * self.block_size)
-        t_1 = output.reshape(batch_size, d_height, d_width, self.block_size_sq, s_depth)
-        spl = t_1.split(self.block_size, 3)
-        stack = [t_t.reshape(batch_size, d_height, s_width, s_depth) for t_t in spl]
-        output = torch.stack(stack,0).transpose(0,1).permute(0,2,1,3,4).reshape(batch_size, s_height, s_width, s_depth)
-        output = output.permute(0, 3, 1, 2)
-        return output
-
-class SpaceToDepth(torch.nn.Module):
-    def __init__(self, block_size):
-        super(SpaceToDepth, self).__init__()
-        self.block_size = block_size
-        self.block_size_sq = block_size*block_size
-
-    def forward(self, input):
-        output = input.permute(0, 2, 3, 1)
-        (batch_size, s_height, s_width, s_depth) = output.size()
-        d_depth = s_depth * self.block_size_sq
-        d_width = int(s_width / self.block_size)
-        d_height = int(s_height / self.block_size)
-        t_1 = output.split(self.block_size, 2)
-        stack = [t_t.reshape(batch_size, d_height, d_depth) for t_t in t_1]
-        output = torch.stack(stack, 1)
-        output = output.permute(0, 2, 1, 3)
-        output = output.permute(0, 3, 1, 2)
-        return output
-
-def depth_to_space_with_softmax(score_maps, cell_size):
-    is_batch = False
-    if len(score_maps.shape) == 4:
-        is_batch = True
-
-    if is_batch:
-        maps = torch.nn.functional.softmax(score_maps, dim=1) # [batch, 65, Hc, Wc]
-        nodust = maps[:, :-1, :, :]
-    else:
-        maps = torch.nn.functional.softmax(score_maps, dim=0) # [65, Hc, Wc]
-        nodust = maps[:-1, :, :].unsqueeze(0)
-
-    depth2space = DepthToSpace(cell_size)
-    scores = depth2space(nodust)
-    scores = scores.squeeze(0) if not is_batch else scores
-
-    return scores # [1, H, W] or # [batch, 1, H, W]
-
-def depth_to_space_without_softmax(score_maps, cell_size=8):
-    is_batch = False
-    if len(score_maps.shape) == 4:
-        is_batch = True
-
-    if is_batch:
-        if score_maps.shape[1] == 65:
-            nodust = score_maps[:, :-1, :, :]
-        elif score_maps.shape[1] == 64:
-            nodust = score_maps
-    else:
-        if score_maps.shape[0] == 65:
-            nodust = score_maps[:-1, :, :].unsqueeze(0)
-        elif score_maps.shape[0] == 64:
-            nodust = score_maps.unsqueeze(0)
-
-    depth2space = DepthToSpace(cell_size)
-    scores = depth2space(nodust)
-    scores = scores.squeeze(0) if not is_batch else scores
-
-    return scores # [1, H, W] or # [batch, 1, H, W]
-
-def space_to_depth(heatmaps, cell_size=8, add_dustbin=True):
-    is_batch = True
-    if len(heatmaps.shape) == 3:
-        is_batch = False
-        heatmaps = heatmaps.unsqueeze(0)
-
-    batch_size, _, H, W = heatmaps.shape # labels [batch, 1, H, W]
-    Hc, Wc = H // cell_size, W // cell_size
-    space2depth = SpaceToDepth(cell_size)
-    heatmaps = space2depth(heatmaps)
-    if add_dustbin:
-        dustbin = heatmaps.sum(dim=1)
-        dustbin = 1 - dustbin
-        dustbin[dustbin < 1.] = 0
-        heatmaps = torch.cat((heatmaps, dustbin.view(batch_size, 1, Hc, Wc)), dim=1)
-        dn = heatmaps.sum(dim=1)
-        heatmaps = heatmaps.div(torch.unsqueeze(dn, 1))
-    
-    score_maps = heatmaps.squeeze(0) if not is_batch else heatmaps
-    return score_maps # [batch, 65, Hc, Wc]
-
-def heatmap_flag(heatmaps, cell_size=8):
-    is_batch = True
-    if len(heatmaps.shape) == 3:
-        is_batch = False
-        heatmaps = heatmaps.unsqueeze(0)
-
-    batch_size, _, H, W = heatmaps.shape # labels [batch, 1, H, W]
-    Hc, Wc = H // cell_size, W // cell_size
-    space2depth = SpaceToDepth(cell_size)
-    heatmaps = space2depth(heatmaps)
-    # if add_dustbin:
-    dustbin = heatmaps.sum(dim=1)
-    dustbin = 1 - dustbin
-    dustbin[dustbin < 1.] = 0
-    dustbin = 1 - dustbin
-    flag = dustbin.view(batch_size, 1, Hc, Wc)
-    
-    flags = flag.squeeze(0) if not is_batch else flag
-    flags = flags.type(torch.bool)
-    return flags # [batch, 1, Hc, Wc]
-'''
-
-
-
-
-
-
-'''
-def get_position(p_map, downsample=8):
-    x = torch.arange(p_map.shape[2], requires_grad=False, device=p_map.device)
-    y = torch.arange(p_map.shape[1], requires_grad=False, device=p_map.device)
-    y, x = torch.meshgrid([y, x])
-    cell = torch.stack([x, y], dim=0)
-
-    return (cell + p_map) * downsample
-
-def get_score_map(score_map, position, downsample=8): # score_map: 1,512,512, position: 2 32 32
-    pixel_coor = get_position(position, downsample).to(position.device)
-
-    pixel_coor[torch.where(pixel_coor>=(score_map.shape[1]-0.5))] = score_map.shape[1]-1.0
-
-    score = score_map[:, pixel_coor[1,:,:].round().long(), pixel_coor[0,:,:].round().long()]
-
-    assert(score.shape[1] == (score_map.shape[1] // downsample) and score.shape[2] == (score_map.shape[2] // downsample))
-
-    return score # score: 1,32,32
-
-def get_coordinates(positions, scores, scale_value=1., num_points=1000, threshold=-1, order_coord='xysr'):
-    scores = scores.squeeze(0)
-    indexes = geometry_tools.find_index_higher_scores(scores, num_points=num_points, threshold=threshold)
-    new_indexes = []
-    for ind in indexes:
-        position = positions[:,ind[0],ind[1]]
-        score = scores[ind[0],ind[1]]
-        if order_coord == 'xysr':
-            tmp = [position[0], position[1], scale_value, score]
-        elif order_coord == 'yxsr':
-            tmp = [position[1], position[0], scale_value, score]
-
-        new_indexes.append(tmp)
-
-    indexes = np.asarray(new_indexes)
-
-    return np.asarray(indexes)
-
-def compute_repeatability_with_direct_position(
-    src_score_maps, src_outputs_pos_batch,
-    dst_score_maps, dst_outputs_pos_batch, homography,
-    num_points, order_coord):
-    
-    rep_s = []
-    rep_m = []
-    error_overlap_s = []
-    error_overlap_m = []
-    possible_matches = []
-
-
-    src_positions = get_position(src_outputs_pos_batch[0,:,:,:]) # 2 32 32
-    src_scores = get_score_map(src_score_maps[0,:,:,:], src_outputs_pos_batch[0,:,:,:]) # 32,32
-
-    src_pts = get_coordinates(src_positions.cpu().numpy(), src_scores.cpu().numpy(), num_points=num_points, order_coord=order_coord)
-
-    dst_positions = get_position(dst_outputs_pos_batch[0,:,:,:]) # 2 32 32
-    dst_scores = get_score_map(dst_score_maps[0,:,:,:], dst_outputs_pos_batch[0,:,:,:]) # 32,32
-
-    dst_pts = get_coordinates(dst_positions.cpu().numpy(), dst_scores.cpu().numpy(), num_points=num_points, order_coord=order_coord)
-
-    dst_to_src_pts = geometry_tools.apply_homography_to_points(dst_pts, homography)
-
-    repeatability_results = repeatability_tools.compute_repeatability(src_pts, dst_to_src_pts)
-
-    rep_s.append(repeatability_results['rep_single_scale'])
-    rep_m.append(repeatability_results['rep_multi_scale'])
-    error_overlap_s.append(repeatability_results['error_overlap_single_scale'])
-    error_overlap_m.append(repeatability_results['error_overlap_multi_scale'])
-    possible_matches.append(repeatability_results['possible_matches'])
-
-    return rep_s, rep_m, error_overlap_s, error_overlap_m, possible_matches
-'''
-
-
-
-
-
-
 def ckpt_state(model=None, optimizer=None, epoch=None, rep_s=0.):
     optim_state = optimizer.state_dict() if optimizer is not None else optimizer
     model_state = model.state_dict() if model is not None else None
 
     return {'epoch': epoch,  'model_state': model_state, 'optimizer_state': optim_state, 'repeatability': rep_s}
-
-
-
 
 @torch.no_grad()
 def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_size=8, nms_size=15, num_points=25):
@@ -556,8 +229,6 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
         dst_score_maps = dst_outputs['prob']
 
         b = time.time()
-        # hom = geo_tools.prepare_homography(h_dst_2_src_batch[0])
-        # mask_src, mask_dst = geo_tools.create_common_region_masks(hom, images_src_batch[0].shape, images_dst_batch[0].shape)
         homography = h_dst_2_src_batch[0].cpu().numpy()
         shape_src = images_src_batch[0].permute(1, 2, 0).cpu().numpy().shape
         shape_dst = images_dst_batch[0].permute(1, 2, 0).cpu().numpy().shape
@@ -610,11 +281,6 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
                 src_score_maps[0, :, :].cpu().numpy(), dst_score_maps[0, :, :].cpu().numpy(), homography,
                 mask_src, mask_dst, nms_size, num_points
         )
-        
-        # rep_s_pos, rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos = compute_repeatability_with_direct_position(
-        #     src_score_maps, src_outputs_pos_batch, dst_score_maps, dst_outputs_pos_batch, homography,
-        #     num_points=num_points, order_coord='xysr'
-        # )
 
         if tb_log is not None and idx == 0:
             src_image_grid = torchvision.utils.make_grid(images_src_batch)
@@ -637,10 +303,7 @@ def check_val_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_s
     return np.asarray(rep_s).mean(), np.asarray(rep_m).mean(), np.asarray(error_overlap_s).mean(),\
            np.asarray(error_overlap_m).mean(), np.asarray(possible_matches).mean(),\
            np.asarray(rep_s_nms).mean(), np.asarray(rep_m_nms).mean(), np.asarray(error_overlap_s_nms).mean(),\
-           np.asarray(error_overlap_m_nms).mean(), np.asarray(possible_matches_nms).mean() #,\
-        #    np.asarray(rep_s_pos).mean(), np.asarray(rep_m_pos).mean(), np.asarray(error_overlap_s_pos).mean(),\
-        #    np.asarray(error_overlap_m_pos).mean(), np.asarray(possible_matches_pos).mean()
-
+           np.asarray(error_overlap_m_nms).mean(), np.asarray(possible_matches_nms).mean()
 
 @torch.no_grad()
 def check_val_hsequences_repeatability(dataloader, model, device, tb_log, cur_epoch, cell_size=8, nms_size=15, num_points=25, border_size=15):
@@ -663,7 +326,6 @@ def check_val_hsequences_repeatability(dataloader, model, device, tb_log, cur_ep
         sequence_name = sequence_data['sequence_name']
         im_src_RGB_norm = sequence_data['im_src_RGB_norm']
         images_dst_RGB_norm = sequence_data['images_dst_RGB_norm']
-        # h_src_2_dst = sequence_data['h_src_2_dst']
         h_dst_2_src = sequence_data['h_dst_2_src']
 
         for im_dst_index in range(len(images_dst_RGB_norm)):
@@ -685,7 +347,6 @@ def check_val_hsequences_repeatability(dataloader, model, device, tb_log, cur_ep
 
             c = time.time()
 
-            
             pts_src = np.asarray(list(map(lambda x: [x[1], x[0], x[2], x[3]], pts_src)))
             pts_dst = np.asarray(list(map(lambda x: [x[1], x[0], x[2], x[3]], pts_dst)))
             
@@ -725,7 +386,6 @@ def check_val_hsequences_repeatability(dataloader, model, device, tb_log, cur_ep
             dc += d-c
             ed += e-d
             fe += f-e
-
             
             iterate.set_description("{}  {} / {} - {} Validation time: {:0.3f} {:0.3f} {:0.3f} {:0.3f} {:0.3f}"
                 .format(

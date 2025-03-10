@@ -16,8 +16,8 @@ from .loss import loss_function
 
 # Basic setting
 args, cfg = config.parse_config()
-
 start_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+
 # Check directories
 output_dir = Path(args.log_dir, args.exper_name, start_time)
 common_utils.check_directory(output_dir)
@@ -44,11 +44,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = get_model.load_model(cfg['model'])
 model.to(device)
 
-# usp_loss = loss_function.ScoreLoss(device, cfg['model']['unsuper_loss'])
 usp_loss = None
 
 optimizer = train_utils.build_optimizer(filter(lambda p: p.requires_grad, model.parameters()), cfg['model']['optimizer'])
-
 
 total_epochs = cfg['model']['optimizer']['total_epochs']
 start_epoch = 0
@@ -76,11 +74,6 @@ logger.info("The number of learnable parameters : {} ".format(params.data))
 logger.info("==================================================================== ")
 
 
-# scheduler = train_utils.build_scheduler(
-#     optimizer,
-#     total_epochs=total_epochs,
-#     last_epoch=last_epoch,
-#     optim_cfg=cfg['model']['optimizer'])
 scheduler = train_utils.build_scheduler(
     optimizer,
     total_epochs=total_epochs,
@@ -100,7 +93,6 @@ if best_epoch == 0:
             best_epoch = -1
             logger.info(('\n Epoch -1 : Repeatability Validation: {:.3f}.'.format(repeatability)))
             logger.info(('\n Epoch -1 : KeyNet NMS Repeatability Validation: {:.3f}.\n\n'.format(rep_s_nms)))
-            # logger.info(('\n Epoch -1 : Position Repeatability Validation: {:.3f}.\n\n'.format(rep_s_pos)))
 
 count = 0
 max_counts = 3
@@ -124,27 +116,15 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
                     )
                     tensorboard_log.add_scalar('repeatability_rep_s', rep_s, cur_epoch)
                     tensorboard_log.add_scalar('keynet_nms_repeatability_rep_s', rep_s_nms, cur_epoch)
-                    # tensorboard_log.add_scalar('position_repeatability_rep_s', rep_s_pos, cur_epoch)
             logger.info(('Epoch {} (Validation) : Repeatability (rep_s): {:.3f}. '.format(cur_epoch, rep_s)))
-            # logger.info('\trep_m : {:.3f}, error_overlap_s : {:.3f}, error_overlap_m : {:.3f}, possible_matches : {:.3f}.'\
-            #             .format( rep_m, error_overlap_s, error_overlap_m, possible_matches))
-
             logger.info(('\tEpoch {} (Validation) : KeyNet NMS Repeatability (rep_s_nms): {:.3f}. '.format(cur_epoch, rep_s_nms)))
-            # logger.info('\t\trep_m_nms : {:.3f}, error_overlap_s_nms : {:.3f}, error_overlap_m_nms : {:.3f}, possible_matches_nms : {:.3f}. \n\n'\
-            #             .format( rep_m_nms, error_overlap_s_nms, error_overlap_m_nms, possible_matches_nms))
         else:
             rep_s_nms = 0
-
-        # logger.info(('\tEpoch {} (Validation) : Position Repeatability (rep_s_nms): {:.3f}. '.format(cur_epoch, rep_s_pos)))
-        # logger.info('\t\trep_m_nms : {:.3f}, error_overlap_s_nms : {:.3f}, error_overlap_m_nms : {:.3f}, possible_matches_nms : {:.3f}. \n\n'\
-        #             .format( rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos))
 
         # Control the early stopping
         if cur_epoch == 0:
             loss_best = loss
         else:
-            # if best_repeatability < rep_s:
-                # best_repeatability = rep_s
             if best_repeatability < rep_s_nms:
                 best_repeatability = rep_s_nms
                 best_epoch = cur_epoch + 1
@@ -179,5 +159,3 @@ with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) a
 
 logger.info("Best validation repeatability score : {} at epoch {}. ".format(best_repeatability, best_epoch))
 logger.info("================ End Training ================ \n\n")
-
-# rep_s_pos, rep_m_pos, error_overlap_s_pos, error_overlap_m_pos, possible_matches_pos =\

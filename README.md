@@ -41,6 +41,40 @@ git clone https://github.com/ericzzj1989/BALF.git && cd BALF
 python -m pip install -e .
 ```
 
+## Demo
+Below we show how DeDoDe can be run, you can also check out the [demos](demo)
+```python
+from balf.utils import test_utils
+from balf.configs import config
+from balf.model import get_model
+from demo import demo_match
+from third_party.hardnet.hardnet_pytorch import HardNet
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+args, cfg = config.parse_test_config()
+
+detector = get_model.load_model(cfg['model'])
+_,_ = get_model.load_test_pretrained_model(model=detector, filename=args.ckpt_file)
+detector = detector.eval().to(device)
+
+descriptor = HardNet()
+checkpoint_descriptor = torch.load(args.ckpt_descriptor_file, weights_only=True)
+descriptor.load_state_dict(checkpoint_descriptor['state_dict'])
+descriptor = descriptor.eval().to(device)
+
+im_rgb1, im_gray1 = demo_match.load_im('media/im1.jpg')
+im_rgb2, im_gray2 = demo_match.load_im('media/im2.jpg')
+
+matches1, matches2 = demo_match.extract_matches(
+  args,
+  im_rgb1, im_gray1, im_rgb2, im_gray2,
+  detector, descriptor, device)
+
+Image.fromarray(demo_match.draw_matches(im_rgb1, matches1, im_rgb2, matches2)).save("demo/matches.png")
+
+```
+
+
 ## Acknowledgments
 
 The author thanks <a href="https://ethliup.github.io/">Peidong Liu</a> and <a href="http://www.mae.cuhk.edu.hk/~bmchen">Ben M. Chen</a> for supporting.
