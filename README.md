@@ -29,7 +29,7 @@
 - [x] Release the training code.
 - [x] Release the testing code.
 - [x] Release the model checkpoint.
-- [ ] Add installation and usage guidance.
+- [x] Add installation and usage guidance.
 - [ ] Release the Blur-HPatches dataset.
 
 ## Installation
