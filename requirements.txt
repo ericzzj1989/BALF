@@ -1,4 +1,4 @@
-torch==2.6.0
+torch
 numpy==1.26.4
 kornia==0.7.4
 pillow==11.0.0
